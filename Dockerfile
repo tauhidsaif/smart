@@ -4,10 +4,11 @@ FROM node:20
 # Set working directory
 WORKDIR /app
 
-# Install required OS-level dependencies
+# Install required OS-level dependencies, including qpdf
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     graphicsmagick \
+    qpdf \
     libcairo2-dev \
     libjpeg-dev \
     libpango1.0-dev \
@@ -20,11 +21,11 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of your project
+# Copy the rest of the project
 COPY . .
 
 # Expose the port your app runs on
 EXPOSE 5000
 
-# Start the server
+# Start the app
 CMD ["npm", "start"]
