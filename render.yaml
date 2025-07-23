@@ -1,0 +1,15 @@
+# render.yaml
+services:
+  - type: web
+    name: aadhaar-backend
+    env: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+    autoDeploy: true

@@ -1,0 +1,337 @@
+/* ✅ Enhanced style.css */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(to right, #eef0f4, #dbe2ec);
+  padding: 40px;
+  margin: 0;
+  transition: background 0.3s, color 0.3s;
+  animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+body.dark {
+  background: #0d1117;
+  color: #f1f1f1;
+}
+
+.container.glass {
+  max-width: 1100px;
+  margin: auto;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 40px;
+  transition: background 0.3s;
+  animation: slideUp 0.8s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.dark-toggle {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+
+.dark-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.dark-toggle .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0;
+  right: 0; bottom: 0;
+  background-color: #ccc;
+  border-radius: 34px;
+  transition: 0.4s;
+}
+
+.dark-toggle .slider:before {
+  position: absolute;
+  content: "";
+  height: 26px; width: 26px;
+  left: 4px; bottom: 4px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.4s;
+}
+
+.dark-toggle input:checked + .slider {
+  background-color: #2196f3;
+}
+
+.dark-toggle input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  animation: fadeIn 1s ease-out;
+  margin-bottom: 40px; /* NEW */
+}
+
+input, button {
+  padding: 14px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  outline: none;
+  width: 100%;
+  transition: 0.3s ease-in-out;
+}
+
+input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 10px #007bff80;
+}
+
+button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
+  box-shadow: 0 0 12px #007bff80;
+}
+
+button:active {
+  transform: scale(0.96);
+}
+
+button:hover {
+  background-color: #0056b3;
+  box-shadow: 0 0 15px #0056b3aa;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-top: 3px solid #000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.hidden {
+  display: none;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+#templatePreview {
+  margin-top: 60px;
+  text-align: center;
+  clear: both;
+  display: block;
+}
+
+
+.flip-container {
+  perspective: 1200px;
+  margin-top: 40px;
+  position: relative;
+  max-width: 100%;
+  padding: 0 10px;
+  animation: fadeIn 1.2s ease-out;
+}
+
+.flip-card {
+  width: 100%;
+  max-width: 600px;
+  margin: auto;
+  cursor: pointer;
+  border-radius: 20px;
+  transition: box-shadow 0.3s;
+}
+
+.flip-card:hover {
+  box-shadow: 0 0 18px #007bff88;
+}
+
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  transition: transform 1s;
+  transform-style: preserve-3d;
+}
+
+.flip-card.flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  backface-visibility: hidden;
+  padding-bottom: 10px;
+}
+
+.flip-card-front h4,
+.flip-card-back h4 {
+  margin-bottom: 10px;
+  font-size: 18px;
+  color: #555;
+}
+
+.flip-card-front {
+  z-index: 2;
+  transform: rotateY(0deg);
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front img,
+.flip-card-back img {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  padding: 5px;
+  background: white;
+  margin-bottom: 10px;
+  margin-top: 72px; /* Adjusted for better spacing */
+  transition: filter 0.4s, opacity 0.4s;
+}
+
+.flip-card-front a,
+.flip-card-back a {
+  color: #007bff;
+  text-decoration: none;
+  display: inline-block;
+  margin-top: 5px;
+}
+
+.flip-tip {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #888;
+  font-style: italic;
+}
+
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: #007bff;
+  color: white;
+  padding: 16px 24px;
+  border-radius: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.4s ease;
+  z-index: 1000;
+}
+
+.toast.show {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateX(-50%) scale(1);
+}
+
+body.dark .container.glass {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+}
+
+body.dark button {
+  background: #0d6efd;
+  color: white;
+}
+
+body.dark button:hover {
+  background: #0b5ed7;
+}
+
+body.dark input, body.dark select {
+  background: #1e1e1e;
+  color: white;
+  border-color: #444;
+}
+
+body.dark .flip-card-front a,
+body.dark .flip-card-back a {
+  color: #66b2ff;
+}
+
+body.dark .toast {
+  background: #0d6efd;
+}
+
+@media (max-width: 768px) {
+  .container.glass {
+    padding: 20px;
+  }
+
+  form {
+    gap: 10px;
+  }
+
+  .flip-card {
+    max-width: 100%;
+  }
+
+  .flip-tip {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-bar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  input, button {
+    font-size: 15px;
+    padding: 10px;
+  }
+
+  .toast {
+    font-size: 14px;
+    padding: 12px 18px;
+  }
+}

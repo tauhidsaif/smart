@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart PDF Render</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container glass">
+    <div class="top-bar">
+      <h2>Smart PDF Render</h2>
+      <label class="dark-toggle">
+        <input type="checkbox" id="darkToggle" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <form id="uploadForm">
+      <input type="file" id="aadhaarFile" accept="application/pdf" required />
+      <input type="password" id="password" placeholder="Enter e-Aadhaar password" required />
+      <button type="submit" id="submitBtn">
+        <span id="btnText">Generate Aadhaar Card</span>
+        <span id="spinner" class="spinner hidden"></span>
+      </button>
+    </form>
+
+    <div id="templatePreview" style="display:none; margin-top: 40px;">
+      <div class="flip-container">
+        <div class="flip-card" id="cardFlipper">
+          <div class="flip-card-inner">
+            <div class="flip-card-front">
+              <div class="card-heading"></div>
+              <img id="templateFront" alt="Front Aadhaar" loading="lazy" />
+              <a id="downloadFront" href="#" target="_blank">Open Front</a>
+            </div>
+            <div class="flip-card-back">
+              <div class="card-heading"></div>
+              <img id="templateBack" alt="Back Aadhaar" loading="lazy" />
+              <a id="downloadBack" href="#" target="_blank">Open Back</a>
+            </div>
+          </div>
+        </div>
+        <p class="flip-tip">Click on the card to flip</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Aadhaar card generated successfully!</div>
+  <script src="script.js"></script>
+</body>
+</html>

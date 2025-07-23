@@ -1,0 +1,21 @@
+{
+  "name": "smart-pdf-render",
+  "version": "1.0.0",
+  "description": "",
+  "main": "backend/index.js",
+  "scripts": {
+    "start": "node backend/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "canvas": "^3.1.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "gm": "^1.25.1",
+    "jimp": "^0.16.1",
+    "multer": "^2.0.1",
+    "sharp": "^0.34.2"
+  }
+}
