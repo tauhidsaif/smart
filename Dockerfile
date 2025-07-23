@@ -1,9 +1,10 @@
 # Use Debian-based Node.js image
 FROM node:20-bullseye
 
-# Install required system packages
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
   qpdf \
+  poppler-utils \  # ✅ This is the missing one!
   graphicsmagick \
   libcairo2-dev \
   libjpeg-dev \
@@ -21,7 +22,7 @@ COPY . .
 # Install Node dependencies
 RUN npm install
 
-# Expose your backend port
+# Expose backend port
 EXPOSE 5000
 
 # Start the server
