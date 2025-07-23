@@ -1,29 +1,30 @@
-# Use Debian-based Node.js image
-FROM node:20-bullseye
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-  qpdf \
-  poppler-utils \  # ✅ This is the missing one!
-  graphicsmagick \
-  libcairo2-dev \
-  libjpeg-dev \
-  libpango1.0-dev \
-  libgif-dev \
-  librsvg2-dev \
-  && rm -rf /var/lib/apt/lists/*
+# Use official Node.js base image
+FROM node:20
 
 # Set working directory
 WORKDIR /app
 
-# Copy everything
-COPY . .
+# Install required OS-level dependencies
+RUN apt-get update && apt-get install -y \
+    poppler-utils \
+    graphicsmagick \
+    libcairo2-dev \
+    libjpeg-dev \
+    libpango1.0-dev \
+    libgif-dev \
+    librsvg2-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Node dependencies
+# Copy package.json and install dependencies
+COPY package*.json ./
 RUN npm install
 
-# Expose backend port
+# Copy the rest of your project
+COPY . .
+
+# Expose the port your app runs on
 EXPOSE 5000
 
 # Start the server
-CMD ["node", "backend/index.js"]
+CMD ["npm", "start"]
