@@ -4,7 +4,7 @@ FROM node:20
 # Set working directory
 WORKDIR /app
 
-# Install required OS-level dependencies, including qpdf
+# Install OS-level dependencies and Hindi fonts
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     graphicsmagick \
@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y \
     libgif-dev \
     librsvg2-dev \
     build-essential \
+    fonts-noto-core \
+    fonts-noto-cjk \
+    fonts-noto-unhinted \
+    fonts-noto-color-emoji \
+    fonts-deva \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package.json and install dependencies
