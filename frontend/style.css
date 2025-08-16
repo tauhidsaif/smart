@@ -1,17 +1,19 @@
-/* ✅ Enhanced style.css */
+/* ✅ Enhanced style.css with Modern Effects */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* ===== BODY ===== */
 body {
   font-family: 'Segoe UI', sans-serif;
   background: linear-gradient(to right, #eef0f4, #dbe2ec);
   padding: 40px;
   margin: 0;
-  transition: background 0.3s, color 0.3s;
+  transition: background 0.4s ease, color 0.3s ease;
   animation: fadeIn 1s ease-out;
+  color: #222;
 }
 
 @keyframes fadeIn {
@@ -20,20 +22,21 @@ body {
 }
 
 body.dark {
-  background: #0d1117;
+  background: linear-gradient(135deg, #0d1117, #161b22);
   color: #f1f1f1;
 }
 
+/* ===== CONTAINER ===== */
 .container.glass {
   max-width: 1100px;
   margin: auto;
   background: rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   padding: 40px;
-  transition: background 0.3s;
+  transition: background 0.3s, box-shadow 0.3s;
   animation: slideUp 0.8s ease-out;
 }
 
@@ -42,6 +45,12 @@ body.dark {
   to { transform: translateY(0); opacity: 1; }
 }
 
+body.dark .container.glass {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+}
+
+/* ===== TOP BAR ===== */
 .top-bar {
   display: flex;
   justify-content: space-between;
@@ -49,6 +58,16 @@ body.dark {
   margin-bottom: 25px;
 }
 
+.top-bar h2 {
+  font-size: 26px;
+  font-weight: bold;
+  background: linear-gradient(90deg, #007bff, #00d4ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fadeIn 1s ease;
+}
+
+/* ===== DARK TOGGLE ===== */
 .dark-toggle {
   position: relative;
   display: inline-block;
@@ -80,6 +99,7 @@ body.dark {
   background-color: white;
   border-radius: 50%;
   transition: 0.4s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
 .dark-toggle input:checked + .slider {
@@ -90,12 +110,13 @@ body.dark {
   transform: translateX(26px);
 }
 
+/* ===== FORM ===== */
 form {
   display: flex;
   flex-direction: column;
   gap: 15px;
   animation: fadeIn 1s ease-out;
-  margin-bottom: 40px; /* NEW */
+  margin-bottom: 40px;
 }
 
 input, button {
@@ -110,11 +131,12 @@ input, button {
 
 input:focus {
   border-color: #007bff;
-  box-shadow: 0 0 10px #007bff80;
+  box-shadow: 0 0 12px #007bff80;
 }
 
+/* ===== BUTTON ===== */
 button {
-  background-color: #007bff;
+  background: linear-gradient(135deg, #007bff, #0056b3);
   color: white;
   border: none;
   display: flex;
@@ -122,38 +144,38 @@ button {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
+  transition: background 0.3s, box-shadow 0.3s, transform 0.15s;
   box-shadow: 0 0 12px #007bff80;
+  font-weight: 500;
+}
+
+button:hover {
+  background: linear-gradient(135deg, #0056b3, #004099);
+  box-shadow: 0 0 18px #0056b3aa;
 }
 
 button:active {
   transform: scale(0.96);
 }
 
-button:hover {
-  background-color: #0056b3;
-  box-shadow: 0 0 15px #0056b3aa;
-}
-
+/* ===== SPINNER ===== */
 .spinner {
   width: 20px;
   height: 20px;
-  border: 3px solid #fff;
-  border-top: 3px solid #000;
+  border: 3px solid rgba(255,255,255,0.4);
+  border-top: 3px solid #fff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
-.hidden {
-  display: none;
-}
+.hidden { display: none; }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-
+/* ===== PREVIEW ===== */
 #templatePreview {
   margin-top: 60px;
   text-align: center;
@@ -161,7 +183,7 @@ button:hover {
   display: block;
 }
 
-
+/* ===== FLIP CARD ===== */
 .flip-container {
   perspective: 1200px;
   margin-top: 40px;
@@ -181,7 +203,8 @@ button:hover {
 }
 
 .flip-card:hover {
-  box-shadow: 0 0 18px #007bff88;
+  box-shadow: 0 0 20px #007bff88;
+  transform: scale(1.01);
 }
 
 .flip-card-inner {
@@ -207,7 +230,7 @@ button:hover {
 .flip-card-back h4 {
   margin-bottom: 10px;
   font-size: 18px;
-  color: #555;
+  color: #444;
 }
 
 .flip-card-front {
@@ -222,14 +245,18 @@ button:hover {
 .flip-card-front img,
 .flip-card-back img {
   width: 100%;
-  max-width: 100%;
   border: 1px solid #ccc;
   border-radius: 16px;
   padding: 5px;
   background: white;
-  margin-bottom: 10px;
-  margin-top: 72px; /* Adjusted for better spacing */
-  transition: filter 0.4s, opacity 0.4s;
+  margin: 70px auto 12px auto;
+  transition: filter 0.4s, opacity 0.4s, transform 0.3s;
+}
+
+.flip-card-front img:hover,
+.flip-card-back img:hover {
+  filter: brightness(1.05);
+  transform: scale(1.02);
 }
 
 .flip-card-front a,
@@ -238,15 +265,23 @@ button:hover {
   text-decoration: none;
   display: inline-block;
   margin-top: 5px;
+  transition: color 0.3s;
 }
 
+.flip-card-front a:hover,
+.flip-card-back a:hover {
+  color: #0056b3;
+}
+
+/* ===== TIP ===== */
 .flip-tip {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: 14px;
-  color: #888;
+  color: #666;
   font-style: italic;
 }
 
+/* ===== TOAST ===== */
 .toast {
   position: fixed;
   bottom: 30px;
@@ -260,6 +295,9 @@ button:hover {
   pointer-events: none;
   transition: opacity 0.5s ease, transform 0.4s ease;
   z-index: 1000;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .toast.show {
@@ -268,21 +306,17 @@ button:hover {
   transform: translateX(-50%) scale(1);
 }
 
-body.dark .container.glass {
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
-}
-
+/* ===== DARK MODE REFINEMENTS ===== */
 body.dark button {
-  background: #0d6efd;
+  background: linear-gradient(135deg, #0d6efd, #0b5ed7);
   color: white;
 }
 
 body.dark button:hover {
-  background: #0b5ed7;
+  background: linear-gradient(135deg, #0b5ed7, #0945a1);
 }
 
-body.dark input, body.dark select {
+body.dark input {
   background: #1e1e1e;
   color: white;
   border-color: #444;
@@ -297,22 +331,14 @@ body.dark .toast {
   background: #0d6efd;
 }
 
+/* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .container.glass {
     padding: 20px;
   }
-
-  form {
-    gap: 10px;
-  }
-
-  .flip-card {
-    max-width: 100%;
-  }
-
-  .flip-tip {
-    font-size: 12px;
-  }
+  form { gap: 12px; }
+  .flip-card { max-width: 100%; }
+  .flip-tip { font-size: 12px; }
 }
 
 @media (max-width: 480px) {
@@ -320,18 +346,7 @@ body.dark .toast {
     flex-direction: column;
     gap: 10px;
   }
-
-  h2 {
-    font-size: 20px;
-  }
-
-  input, button {
-    font-size: 15px;
-    padding: 10px;
-  }
-
-  .toast {
-    font-size: 14px;
-    padding: 12px 18px;
-  }
+  h2 { font-size: 20px; }
+  input, button { font-size: 15px; padding: 10px; }
+  .toast { font-size: 14px; padding: 12px 18px; }
 }
