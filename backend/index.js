@@ -388,7 +388,11 @@ app.post('/upload', upload.single('aadhaar'), async (req, res) => {
 
         // 🔢 Aadhaar Number
         backCtx.font = 'bold 130pt Arial';
-        backCtx.fillText(aadhaar || '—', 947, 1659);
+        backCtx.fillText(aadhaar || '—', 947, 1559);
+
+        // 🔑 VID (Back Side)
+        backCtx.font = '60pt Arial';
+        backCtx.fillText(vid || '—', 1255, 1760);
 
        if (qrPath && fs.existsSync(qrPath)) {
         const qrImg = await loadImage(qrPath);
