@@ -361,17 +361,17 @@ app.post('/upload', upload.single('aadhaar'), async (req, res) => {
         }
 
       // 📌 You can now manually control these X/Y values 👇
-      const hindiX = 288;
+      const hindiX = 268;
       const hindiY = 733; // Adjust Hindi block starting Y
-      const englishX = 288;
+      const englishX = 268;
       const englishY = 1202; // Adjust English block starting Y
 
       // 🧾 Hindi Address
-      backCtx.font = '65pt "NotoSansHindi"';
+      backCtx.font = '80pt "NotoSansHindi"';
       drawWrappedText(backCtx, addressHindi || '—', hindiX, hindiY, 1850, 120);
 
       // 🌐 English Address
-      backCtx.font = '55pt Arial';
+      backCtx.font = '70pt Arial';
       drawWrappedText(backCtx, addressEnglish || '—', englishX, englishY, 1850, 120);
 
 
@@ -392,7 +392,7 @@ app.post('/upload', upload.single('aadhaar'), async (req, res) => {
 
         // 🔑 VID (Back Side)
         backCtx.font = '60pt Arial';
-        backCtx.fillText(vid || '—', 1255, 1670);
+        backCtx.fillText(vid || '—', 1240, 1700);
 
        if (qrPath && fs.existsSync(qrPath)) {
         const qrImg = await loadImage(qrPath);
