@@ -1,50 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Smart PDF Render</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="container glass">
-    <div class="top-bar">
-      <h2>Smart PDF Render</h2>
-      <label class="dark-toggle">
-        <input type="checkbox" id="darkToggle" />
-        <span class="slider"></span>
-      </label>
-    </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart PDF Render</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container glass">
+      <div class="top-bar">
+        <h2>Smart PDF Render</h2>
+        <label class="dark-toggle">
+          <input type="checkbox" id="darkToggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
 
-    <form id="uploadForm">
-      <input type="file" id="aadhaarFile" accept="application/pdf" required />
-      <input type="password" id="password" placeholder="Enter e-Aadhaar password" required />
-      <button type="submit" id="submitBtn">
-        <span id="btnText">Generate Aadhaar Card</span>
-        <span id="spinner" class="spinner hidden"></span>
-      </button>
-    </form>
+      <!-- Instruction Box -->
+      <div
+        id="instructions"
+        style="
+          background: linear-gradient(135deg, #e6f3ff, #f9fcff);
+          border: 1px solid #c2dbff;
+          padding: 16px 20px;
+          margin-bottom: 20px;
+          border-radius: 12px;
+          font-size: 15px;
+          color: #2c3e50;
+          line-height: 1.6;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+          transition: opacity 300ms ease, transform 300ms ease;
+        "
+      >
+        <div
+          style="
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a73e8;
+          "
+        >
+          📌 File Naming Instruction
+        </div>
 
-    <div id="templatePreview" style="display:none; margin-top: 40px;">
-      <div class="flip-container">
-        <div class="flip-card" id="cardFlipper">
-          <div class="flip-card-inner">
-            <div class="flip-card-front">
-              <img id="templateFront" alt="Front Aadhaar" loading="lazy" />
-              <a id="downloadFront" href="#" target="_blank">Open Front</a>
-            </div>
-            <div class="flip-card-back">
-              <img id="templateBack" alt="Back Aadhaar" loading="lazy" />
-              <a id="downloadBack" href="#" target="_blank">Open Back</a>
+        <div style="margin-bottom: 6px">
+          ➤ Rename your Aadhaar PDF <strong>before uploading</strong>.
+        </div>
+
+        <div style="margin-bottom: 6px">
+          ➤ Use the <strong>first four letters</strong> of your name in
+          <span style="color: #d93025">CAPITAL letters</span> +
+          <strong>year of birth</strong>.
+        </div>
+
+        <div
+          style="
+            background: #fff;
+            border: 1px dashed #1a73e8;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-top: 10px;
+          "
+        >
+          <em>Example:</em>
+          If name is <b style="color: #1a73e8">RAHUL KUMAR</b> and year of birth
+          is <b style="color: #1a73e8">2004</b>, file name should be
+          <b style="color: #d93025">RAHU2004.pdf</b>
+        </div>
+      </div>
+
+      <form id="uploadForm">
+        <input type="file" id="aadhaarFile" accept="application/pdf" required />
+        <input
+          type="password"
+          id="password"
+          placeholder="Enter e-Aadhaar password or Use Filename As Password "
+          style="display: none"
+        />
+        <p
+          id="passwordError"
+          class="error-msg"
+          style="display: none; color: red; margin-top: 5px"
+        ></p>
+        <button type="submit" id="submitBtn">
+          <span id="btnText">Generate Aadhaar Card</span>
+          <span id="spinner" class="spinner hidden"></span>
+        </button>
+      </form>
+
+      <div id="templatePreview" style="display: none; margin-top: 40px">
+        <div class="flip-container">
+          <div class="flip-card" id="cardFlipper">
+            <div class="flip-card-inner">
+              <div class="flip-card-front">
+                <img id="templateFront" alt="Front Aadhaar" loading="lazy" />
+                <a id="downloadFront" href="#" target="_blank">Open Front</a>
+              </div>
+              <div class="flip-card-back">
+                <img id="templateBack" alt="Back Aadhaar" loading="lazy" />
+                <a id="downloadBack" href="#" target="_blank">Open Back</a>
+              </div>
             </div>
           </div>
+          <p class="flip-tip">Click on the card to flip</p>
         </div>
-        <p class="flip-tip">Click on the card to flip</p>
+
+        <!-- PDF Button -->
+        <div style="margin-top: 16px; display: flex; gap: 10px;">
+          <button id="pdfBtn" class="btn-secondary" type="button">
+            <span id="pdfBtnText">Download Aadhaar PDF</span>
+            <span id="pdfSpinner" class="spinner hidden"></span>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="toast" class="toast">Aadhaar card generated successfully!</div>
-  <script src="script.js"></script>
-</body>
+    <div id="toast" class="toast">Aadhaar card generated successfully!</div>
+    <script src="script.js"></script>
+  </body>
 </html>

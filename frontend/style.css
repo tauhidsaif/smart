@@ -7,7 +7,7 @@
 
 /* ===== BODY ===== */
 body {
-  font-family: 'Segoe UI', sans-serif;
+  font-family: "Segoe UI", sans-serif;
   background: linear-gradient(to right, #eef0f4, #dbe2ec);
   padding: 40px;
   margin: 0;
@@ -17,8 +17,14 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body.dark {
@@ -41,8 +47,14 @@ body.dark {
 }
 
 @keyframes slideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 body.dark .container.glass {
@@ -84,8 +96,10 @@ body.dark .container.glass {
 .dark-toggle .slider {
   position: absolute;
   cursor: pointer;
-  top: 0; left: 0;
-  right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-color: #ccc;
   border-radius: 34px;
   transition: 0.4s;
@@ -94,12 +108,14 @@ body.dark .container.glass {
 .dark-toggle .slider:before {
   position: absolute;
   content: "";
-  height: 26px; width: 26px;
-  left: 4px; bottom: 4px;
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
   background-color: white;
   border-radius: 50%;
   transition: 0.4s;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .dark-toggle input:checked + .slider {
@@ -119,7 +135,8 @@ form {
   margin-bottom: 40px;
 }
 
-input, button {
+input,
+button {
   padding: 14px;
   font-size: 16px;
   border-radius: 10px;
@@ -162,17 +179,23 @@ button:active {
 .spinner {
   width: 20px;
   height: 20px;
-  border: 3px solid rgba(255,255,255,0.4);
+  border: 3px solid rgba(255, 255, 255, 0.4);
   border-top: 3px solid #fff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
-.hidden { display: none; }
+.hidden {
+  display: none;
+}
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===== PREVIEW ===== */
@@ -220,6 +243,7 @@ button:active {
 
 .flip-card-front,
 .flip-card-back {
+  margin-top: 100px;
   position: absolute;
   width: 100%;
   backface-visibility: hidden;
@@ -244,6 +268,7 @@ button:active {
 
 .flip-card-front img,
 .flip-card-back img {
+  margin-top: 150px;
   width: 100%;
   border: 1px solid #ccc;
   border-radius: 16px;
@@ -300,6 +325,24 @@ button:active {
   letter-spacing: 0.3px;
 }
 
+.error-msg {
+  font-size: 14px;
+  color: #e74c3c;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .toast.show {
   opacity: 1;
   pointer-events: all;
@@ -336,9 +379,15 @@ body.dark .toast {
   .container.glass {
     padding: 20px;
   }
-  form { gap: 12px; }
-  .flip-card { max-width: 100%; }
-  .flip-tip { font-size: 12px; }
+  form {
+    gap: 12px;
+  }
+  .flip-card {
+    max-width: 100%;
+  }
+  .flip-tip {
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -346,7 +395,66 @@ body.dark .toast {
     flex-direction: column;
     gap: 10px;
   }
-  h2 { font-size: 20px; }
-  input, button { font-size: 15px; padding: 10px; }
-  .toast { font-size: 14px; padding: 12px 18px; }
+  h2 {
+    font-size: 20px;
+  }
+  input,
+  button {
+    font-size: 15px;
+    padding: 10px;
+  }
+  .toast {
+    font-size: 14px;
+    padding: 12px 18px;
+  }
+}
+
+/* smooth hide for instruction box (works with inline transition in HTML) */
+#instructions.hide {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+/* optional secondary button look */
+.btn-secondary {
+  border: 1px solid #c2dbff;
+  background: #f6faff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+.btn-secondary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.btn-secondary:active {
+  transform: translateY(1px);
+}
+
+/* ensure spinner utility exists */
+.spinner.hidden { display: none; }
+
+#pdfBtn {
+  background: #1a73e8;        /* blue button */
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;                /* full width, easier to see */
+  transition: background 0.3s ease;
+}
+
+#pdfBtn:hover {
+  background: #155ab6;
 }

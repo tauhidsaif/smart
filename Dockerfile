@@ -26,6 +26,9 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 RUN npm install
 
+# Install pdfkit for PDF generation
+RUN npm install pdfkit
+
 # Copy the rest of the project
 COPY . .
 
