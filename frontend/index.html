@@ -108,7 +108,7 @@
         </div>
 
         <!-- PDF Button -->
-        <div style="margin-top: 16px; display: flex; gap: 10px;">
+        <div style="margin-top: 16px; display: flex; gap: 10px">
           <button id="pdfBtn" class="btn-secondary" type="button">
             <span id="pdfBtnText">Download Aadhaar PDF</span>
             <span id="pdfSpinner" class="spinner hidden"></span>
@@ -118,6 +118,131 @@
     </div>
 
     <div id="toast" class="toast">Aadhaar card generated successfully!</div>
+
+    <!-- DOB Modal (shown when Aadhaar has only Year of Birth) -->
+    <div
+      id="dobModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dobTitle"
+      style="
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 9999;
+      "
+    >
+      <div
+        style="
+          width: min(92vw, 520px);
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+          overflow: hidden;
+          font-family: system-ui, Segoe UI, Roboto, Arial;
+        "
+      >
+        <div
+          style="
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #f6f9ff, #eef3ff);
+            border-bottom: 1px solid #e8efff;
+          "
+        >
+          <div
+            id="dobTitle"
+            style="font-size: 18px; font-weight: 700; color: #1f2937"
+          >
+            Complete Date of Birth
+          </div>
+          <div
+            id="dobSub"
+            style="margin-top: 6px; font-size: 13px; color: #4b5563"
+          >
+            Aadhaar contains only Year of Birth (YYYY). Please enter full DOB.
+          </div>
+        </div>
+
+        <div style="padding: 20px 24px">
+          <label
+            for="dobInput"
+            style="
+              display: block;
+              font-size: 12px;
+              color: #374151;
+              margin-bottom: 8px;
+            "
+          >
+            Enter full DOB
+          </label>
+          <input
+            id="dobInput"
+            type="date"
+            style="
+              width: 100%;
+              padding: 12px 14px;
+              border: 1px solid #d1d5db;
+              border-radius: 10px;
+              font-size: 14px;
+              outline: none;
+            "
+          />
+          <div
+            id="dobError"
+            style="
+              margin-top: 8px;
+              font-size: 12px;
+              color: #b91c1c;
+              display: none;
+            "
+          ></div>
+        </div>
+
+        <div
+          style="
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding: 16px 24px;
+            background: #f9fafb;
+            border-top: 1px solid #eef2f7;
+          "
+        >
+          <button
+            id="dobCancel"
+            type="button"
+            style="
+              padding: 10px 14px;
+              border-radius: 10px;
+              border: 1px solid #e5e7eb;
+              background: #fff;
+              color: #111827;
+              cursor: pointer;
+            "
+          >
+            Cancel
+          </button>
+          <button
+            id="dobConfirm"
+            type="button"
+            style="
+              padding: 10px 14px;
+              border-radius: 10px;
+              border: none;
+              background: #111827;
+              color: #fff;
+              cursor: pointer;
+            "
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
     <script src="script.js"></script>
   </body>
 </html>

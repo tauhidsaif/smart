@@ -42,6 +42,15 @@ const qpdfPath = "qpdf";
 const pdftotextPath = "pdftotext";
 const pdfimagesPath = "pdfimages";
 
+// --- DOB/YOB helpers ---
+function isValidDDMMYYYY(s) {
+  return /^([0-2]\d|3[01])\/(0\d|1[0-2])\/(19|20)\d{2}$/.test(s);
+}
+function yearOf(s) {
+  const m = s.match(/(19|20)\d{2}/);
+  return m ? m[0] : "";
+}
+
 app.post("/upload", upload.single("aadhaar"), async (req, res) => {
   console.log("UPLOAD RECEIVED");
   console.log("File:", req.file);
@@ -158,9 +167,20 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
           englishName = lines[toIndex + 2].replace(/\s+/g, " ").trim();
         }
 
-        const dob =
-          (text.match(/DOB[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/) || [])[1] ||
+        // --- DOB/YOB extraction (handles full DOB and year-only cases) ---
+        let dob =
+          (text.match(/DOB[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || [])[1] ||
           "";
+
+        // Try to get a YEAR even if DOB is year-only like "DOB: 2004"
+        const yob =
+          (text.match(/Year\s*of\s*Birth[:\s]*((19|20)\d{2})/i) || // Year of Birth: 2004
+            text.match(/\bYOB[:\s]*((19|20)\d{2})/i) || // YOB: 2004
+            text.match(/DOB[:\s]*((19|20)\d{2})(?!\/)/i) || // DOB: 2004 (no slashes)
+            text.match(/जन्म\s*वर्ष[:\s]*((19|20)\d{2})/i) || // Hindi: जन्म वर्ष: 2004 (optional)
+            (dob && !dob.includes("/") ? [null, yearOf(dob)] : null) || // fallback if dob somehow captured but no slashes
+            [])[1] || "";
+
         const genderMatch = text.match(/(MALE|FEMALE|पुरुष|महिला)/i);
         let gender = genderMatch ? genderMatch[0].toUpperCase() : "";
         if (gender.includes("MALE") || gender.includes("पुरुष"))
@@ -247,6 +267,49 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
         }
 
         const cmdImage = `${pdfimagesPath} -j "${decryptedPath}" "${imagePrefix}"`;
+
+
+
+        // If only Year of Birth exists, ask client to provide full DOB and stop here
+        console.log("Extracted DOB:", dob, " | YOB:", yob);
+        const needsFullDob = !!yob && (!dob || !/^\d{2}\/\d{2}\/\d{4}$/.test(dob));
+        if (needsFullDob) {
+          const pending = {
+            baseName,
+            userDir,
+            extracted: {
+              hindiName,
+              englishName,
+              gender,
+              aadhaar,
+              mobile,
+              vid,
+              issueDate,
+              detailsDate,
+              addressHindi,
+              addressEnglish,
+            },
+            createdAt: Date.now(),
+            yob,
+          };
+          fs.writeFileSync(
+            path.join(userDir, "pending-yob.json"),
+            JSON.stringify(pending, null, 2),
+            "utf8"
+          );
+
+          return res.json({
+            requiresDob: true,
+            yob,
+            baseName,
+            hindiName,
+            englishName,
+            gender,
+            message:
+              "Only Year of Birth found in Aadhaar. Please enter full DOB (dd/mm/yyyy).",
+          });
+        }
+
         exec(cmdImage, async () => {
           const allFiles = fs.readdirSync(userDir);
 
@@ -572,6 +635,213 @@ app.post("/generate-pdf", async (req, res) => {
   }
 });
 // ---------------------------------------------------------------------------
+
+// ---------- NEW ROUTE: finalize when user provides full DOB ----------
+app.post("/finalize-dob", async (req, res) => {
+  try {
+    const { baseName, dobFull } = req.body;
+    if (!baseName || !dobFull) {
+      return res.status(400).json({ error: "Missing baseName or dobFull" });
+    }
+    if (!isValidDDMMYYYY(dobFull)) {
+      return res.status(400).json({ error: "DOB must be dd/mm/yyyy" });
+    }
+
+    const userDir = path.join(uploadDir, baseName);
+    const pendingPath = path.join(userDir, "pending-yob.json");
+    if (!fs.existsSync(pendingPath)) {
+      return res
+        .status(404)
+        .json({ error: "No pending YOB job found for this baseName" });
+    }
+
+    const pending = JSON.parse(fs.readFileSync(pendingPath, "utf8"));
+    const expectedYear = pending.yob;
+    const enteredYear = yearOf(dobFull);
+    if (!expectedYear || !enteredYear || expectedYear !== enteredYear) {
+      return res.status(400).json({
+        error: `Year mismatch. Aadhaar shows year ${expectedYear}, but you entered ${enteredYear}.`,
+      });
+    }
+
+    // Re-detect photo/templates based on files present
+    const allFiles = fs.readdirSync(userDir);
+    const photoFilename =
+      allFiles.find(
+        (f) =>
+          f.startsWith(baseName) &&
+          f.includes("photo-007") &&
+          f.endsWith(".jpg")
+      ) ||
+      allFiles.find(
+        (f) =>
+          f.startsWith(baseName) &&
+          f.includes("photo-010") &&
+          f.endsWith(".jpg")
+      );
+    const photoPath = photoFilename ? path.join(userDir, photoFilename) : "";
+    const isChild = photoFilename && photoFilename.includes("photo-010");
+
+    const frontTemplatePath = isChild
+      ? path.join(__dirname, "..", "template", "child.png")
+      : path.join(__dirname, "..", "template", "final.png");
+
+    const backTemplatePath = isChild
+      ? path.join(__dirname, "..", "template", "child_back.png")
+      : path.join(__dirname, "..", "template", "back.png");
+
+    const {
+      hindiName,
+      englishName,
+      gender,
+      aadhaar,
+      mobile,
+      vid,
+      issueDate,
+      detailsDate,
+      addressHindi,
+      addressEnglish,
+    } = pending.extracted;
+
+    // Render (same as /upload, but with dobFull)
+    const base = await loadImage(frontTemplatePath);
+    const canvas = createCanvas(base.width, base.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(base, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "left";
+
+    ctx.font = 'bold 60pt "NotoSansHindi"';
+    ctx.fillText(hindiName || "नाम नहीं मिला", 982, 553);
+
+    ctx.font = "bold 69pt Arial";
+    ctx.fillText(englishName || "Name Not Found", 982, 677);
+    ctx.fillText(dobFull || "—", 1559, 805);
+
+    ctx.font = '60pt "NotoSansHindi"';
+    ctx.fillText(gender || "—", 982, 917);
+
+    ctx.font = "70pt Arial";
+    ctx.fillText(mobile || "—", 1245, 1061);
+    ctx.font = "bold 130pt Arial";
+    ctx.fillText(aadhaar || "—", 947, 1609);
+    ctx.font = "60pt Arial";
+    ctx.fillText(vid || "—", 1255, 1703);
+
+    ctx.save();
+    ctx.translate(140, 820);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = "bold 40pt sans-serif";
+    ctx.fillStyle = "#000";
+    ctx.fillText(issueDate || "", 0, 0);
+    ctx.restore();
+
+    if (photoPath && fs.existsSync(photoPath)) {
+      const userPhoto = await loadImage(photoPath);
+      ctx.drawImage(userPhoto, 220, 510, 687, 862);
+    }
+
+    const backBase = await loadImage(backTemplatePath);
+    const backCanvas = createCanvas(backBase.width, backBase.height);
+    const backCtx = backCanvas.getContext("2d");
+    backCtx.drawImage(backBase, 0, 0);
+    backCtx.fillStyle = "#000";
+    backCtx.textAlign = "left";
+
+    function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
+      const words = text.split(" ");
+      let line = "";
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + " ";
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + " ";
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+    }
+
+    const hindiX = 200,
+      hindiY = 705;
+    const englishX = 200,
+      englishY = 1170;
+
+    backCtx.font = '70pt "NotoSansHindi"';
+    drawWrappedTextBack(
+      backCtx,
+      addressHindi || "—",
+      hindiX,
+      hindiY,
+      1900,
+      120
+    );
+
+    backCtx.font = "62pt Arial";
+    drawWrappedTextBack(
+      backCtx,
+      addressEnglish || "—",
+      englishX,
+      englishY,
+      1950,
+      120
+    );
+
+    backCtx.save();
+    backCtx.translate(145, 870);
+    backCtx.rotate(-Math.PI / 2);
+    backCtx.font = "bold 40pt sans-serif";
+    backCtx.fillStyle = "#000";
+    backCtx.fillText(detailsDate || "", 0, 0);
+    backCtx.restore();
+
+    backCtx.font = "bold 130pt Arial";
+    backCtx.fillText(aadhaar || "—", 947, 1600);
+
+    backCtx.font = "60pt Arial";
+    backCtx.fillText(vid || "—", 1245, 1688);
+
+    const qrPng = path.join(userDir, `${baseName}_qr.png`);
+    if (fs.existsSync(qrPng)) {
+      const qrImg = await loadImage(qrPng);
+      backCtx.drawImage(qrImg, 2103, 463, 1000, 1000);
+    }
+
+    const frontOutName = `generated-${Date.now()}.png`;
+    const backOutName = `back-${Date.now()}.png`;
+    await Promise.all([
+      new Promise((resolve) =>
+        canvas
+          .createPNGStream()
+          .pipe(fs.createWriteStream(path.join(userDir, frontOutName)))
+          .on("finish", resolve)
+      ),
+      new Promise((resolve) =>
+        backCanvas
+          .createPNGStream()
+          .pipe(fs.createWriteStream(path.join(userDir, backOutName)))
+          .on("finish", resolve)
+      ),
+    ]);
+
+    try {
+      fs.unlinkSync(pendingPath);
+    } catch {}
+
+    return res.json({
+      ok: true,
+      dob: dobFull,
+      downloadUrlFront: `/images/${baseName}/${frontOutName}`,
+      downloadUrlBack: `/images/${baseName}/${backOutName}`,
+    });
+  } catch (e) {
+    console.error("Finalize DOB error:", e);
+    res.status(500).json({ error: "Failed to finalize with DOB" });
+  }
+});
 
 const frontendPath = path.join(__dirname, "..", "frontend");
 app.use(express.static(frontendPath));

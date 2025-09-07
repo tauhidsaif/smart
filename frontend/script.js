@@ -8,6 +8,28 @@ const cardFlipper = document.getElementById("cardFlipper");
 const toast = document.getElementById("toast");
 const darkToggle = document.getElementById("darkToggle");
 
+// --- DOB modal elements ---
+const dobModal = document.getElementById("dobModal");
+const dobSub = document.getElementById("dobSub");
+const dobInput = document.getElementById("dobInput");
+const dobError = document.getElementById("dobError");
+const dobCancel = document.getElementById("dobCancel");
+const dobConfirm = document.getElementById("dobConfirm");
+
+
+function openDobModal(subtext) {
+  if (dobSub) dobSub.textContent = subtext || "";
+  if (dobError) {
+    dobError.style.display = "none";
+    dobError.textContent = "";
+  }
+  if (dobInput) dobInput.value = "";
+  if (dobModal) dobModal.style.display = "flex";
+}
+function closeDobModal() {
+  if (dobModal) dobModal.style.display = "none";
+}
+
 // keep track of uploaded base name for naming the PDF
 let uploadedBaseName = "";
 
@@ -93,6 +115,92 @@ form.addEventListener("submit", async (e) => {
     });
 
     const data = await res.json();
+
+    // --- YOB-only flow: backend is asking for a full DOB ---
+    if (data.requiresDob) {
+      // Show the DOB modal with the server-provided YOB
+      openDobModal(
+        `Aadhaar contains only Year of Birth (${data.yob}). Please enter full date of birth.`
+      );
+
+      // Wire buttons (overwrite old handlers to avoid stacking)
+      dobCancel.onclick = () => {
+        closeDobModal();
+        // Nothing else to do; the submit's finally{} will restore the button state
+      };
+
+      dobConfirm.onclick = async () => {
+        const iso = dobInput.value; // yyyy-mm-dd from <input type="date">
+        if (!iso) {
+          dobError.textContent = "Please pick a date.";
+          dobError.style.display = "block";
+          return;
+        }
+        const [yyyy, mm, dd] = iso.split("-");
+        // Quick client-side year check for smooth UX
+        if (String(data.yob) !== yyyy) {
+          dobError.textContent = `Year must match ${data.yob}. You picked ${yyyy}.`;
+          dobError.style.display = "block";
+          return;
+        }
+
+        // Submit full DOB to finalize
+        try {
+          const finalizeRes = await fetch("/finalize-dob", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              baseName: uploadedBaseName, // same as server folder name
+              dobFull: `${dd}/${mm}/${yyyy}`, // dd/mm/yyyy
+            }),
+          });
+          const finalizeData = await finalizeRes.json();
+          if (!finalizeRes.ok) {
+            dobError.textContent = finalizeData.error || "Failed to finalize.";
+            dobError.style.display = "block";
+            return;
+          }
+
+          closeDobModal();
+
+          // ---- Continue like normal success path using finalize output ----
+          const base = window.location.origin;
+          const templateFront = document.getElementById("templateFront");
+          const templateBack = document.getElementById("templateBack");
+          const downloadFront = document.getElementById("downloadFront");
+          const downloadBack = document.getElementById("downloadBack");
+
+          templateFront.src = base + finalizeData.downloadUrlFront;
+          templateBack.src = base + finalizeData.downloadUrlBack;
+
+          generatedFrontPath = finalizeData.downloadUrlFront;
+          generatedBackPath = finalizeData.downloadUrlBack;
+
+          setImageLoadState(templateFront);
+          setImageLoadState(templateBack);
+
+          downloadFront.href = templateFront.src;
+          downloadBack.href = templateBack.src;
+
+          document.getElementById("templatePreview").style.display = "block";
+
+          await Promise.all([
+            new Promise((r) => (templateFront.onload = r)),
+            new Promise((r) => (templateBack.onload = r)),
+          ]);
+
+          hideInstructionsSmoothly();
+          showToast("Aadhaar card generated successfully!");
+        } catch (e) {
+          console.error(e);
+          dobError.textContent = "Something went wrong while finalizing.";
+          dobError.style.display = "block";
+        }
+      };
+
+      // IMPORTANT: Stop the normal success flow now; the submit's finally{} will run.
+      return;
+    }
 
     if (data.error) {
       passwordError.textContent =
