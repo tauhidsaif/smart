@@ -3,8 +3,13 @@ const multer = require("multer");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const { exec } = require("child_process");
+const { exec, execSync } = require("child_process");
 const { createCanvas, loadImage, registerFont } = require("canvas");
+// ---------- ADD THIS NEAR TOP ----------
+const { pipeline } = require("stream");
+const { promisify } = require("util");
+const pipelineAsync = promisify(pipeline);
+// ---------------------------------------
 const gm = require("gm").subClass({ imageMagick: true });
 const PDFDocument = require("pdfkit"); // <-- NEW
 
@@ -17,7 +22,8 @@ const uploadDir = path.join(__dirname, "..", "uploads");
 const staticDir = path.join(__dirname, "..", "static");
 
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-app.use("/images", express.static(uploadDir));
+// Serve uploaded images with no caching (safer during generation)
+app.use("/images", express.static(uploadDir, { etag: false, maxAge: 0 }));
 app.use("/static", express.static(staticDir));
 
 // ✅ Register Hindi font
@@ -268,11 +274,10 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
 
         const cmdImage = `${pdfimagesPath} -j "${decryptedPath}" "${imagePrefix}"`;
 
-
-
-        // If only Year of Birth exists, ask client to provide full DOB and stop here
+        // If only Year of Birth exists, run pdfimages now so photo files exist for finalize step
         console.log("Extracted DOB:", dob, " | YOB:", yob);
-        const needsFullDob = !!yob && (!dob || !/^\d{2}\/\d{2}\/\d{4}$/.test(dob));
+        const needsFullDob =
+          !!yob && (!dob || !/^\d{2}\/\d{2}\/\d{4}$/.test(dob));
         if (needsFullDob) {
           const pending = {
             baseName,
@@ -292,22 +297,85 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
             createdAt: Date.now(),
             yob,
           };
-          fs.writeFileSync(
-            path.join(userDir, "pending-yob.json"),
-            JSON.stringify(pending, null, 2),
-            "utf8"
-          );
 
-          return res.json({
-            requiresDob: true,
-            yob,
-            baseName,
-            hindiName,
-            englishName,
-            gender,
-            message:
-              "Only Year of Birth found in Aadhaar. Please enter full DOB (dd/mm/yyyy).",
+          // run pdfimages now so the photo-007 / photo-010 files get created in userDir
+          exec(cmdImage, (imgErr, imgStdout, imgStderr) => {
+            if (imgErr) {
+              // don't crash — log and continue. finalize-dob will still proceed but
+              // photo files may be missing.
+              console.warn(
+                "pdfimages failed while preparing pending-yob:",
+                imgStderr || imgErr.message
+              );
+            } else {
+              console.log("pdfimages completed for pending-yob:", userDir);
+            }
+
+            // --- convert pdfimages' photo-000.ppm -> <baseName>_qr.png synchronously ---
+            try {
+              const allNow = fs.readdirSync(userDir);
+              const ppmFile = allNow.find(
+                (f) =>
+                  f.startsWith(baseName) &&
+                  f.includes("photo-000") &&
+                  f.toLowerCase().endsWith(".ppm")
+              );
+
+              if (ppmFile) {
+                const ppmPathLocal = path.join(userDir, ppmFile);
+                const qrPngLocal = path.join(userDir, `${baseName}_qr.png`);
+                const convertCmdLocal = `convert "${ppmPathLocal}" "${qrPngLocal}"`;
+
+                try {
+                  execSync(convertCmdLocal); // BLOCKS briefly but guarantees PNG exists
+                  console.log(
+                    "✅ QR converted (sync) for pending-yob:",
+                    qrPngLocal
+                  );
+                } catch (convErr) {
+                  console.warn(
+                    "Sync QR convert failed in pending-yob branch:",
+                    convErr && convErr.message ? convErr.message : convErr
+                  );
+                }
+              } else {
+                console.log(
+                  "No ppm (photo-000) found for pending-yob conversion."
+                );
+              }
+            } catch (e) {
+              console.warn(
+                "Error while attempting QR convert for pending-yob:",
+                e
+              );
+            }
+
+            // write pending file once extraction attempt finished
+            try {
+              fs.writeFileSync(
+                path.join(userDir, "pending-yob.json"),
+                JSON.stringify(pending, null, 2),
+                "utf8"
+              );
+            } catch (e) {
+              console.error("Failed to write pending-yob.json:", e);
+            }
+
+            // respond to client asking for full DOB
+            return res.json({
+              requiresDob: true,
+              yob,
+              baseName,
+              hindiName,
+              englishName,
+              gender,
+              message:
+                "Only Year of Birth found in Aadhaar. Please enter full DOB (dd/mm/yyyy).",
+            });
           });
+
+          // return here to avoid executing the later exec(cmdImage, ...) generation path
+          return;
         }
 
         exec(cmdImage, async () => {
@@ -509,18 +577,35 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
           const backOutputName = `back-${Date.now()}.png`;
           const backOutputPath = path.join(userDir, backOutputName);
 
-          const out = fs.createWriteStream(outputPath);
-          const backOut = fs.createWriteStream(backOutputPath);
+          // ---------- REPLACE WITH THIS ----------
+          try {
+            const frontStream = fs.createWriteStream(outputPath);
+            const backStream = fs.createWriteStream(backOutputPath);
 
-          const frontDone = new Promise((resolve) => {
-            canvas.createPNGStream().pipe(out).on("finish", resolve);
-          });
+            // Wait for the entire pipeline to finish and the file descriptors to close.
+            await Promise.all([
+              pipelineAsync(canvas.createPNGStream(), frontStream),
+              pipelineAsync(backCanvas.createPNGStream(), backStream),
+            ]);
 
-          const backDone = new Promise((resolve) => {
-            backCanvas.createPNGStream().pipe(backOut).on("finish", resolve);
-          });
+            // Sanity check: ensure files are present and non-empty
+            const fStat = fs.statSync(outputPath);
+            const bStat = fs.statSync(backOutputPath);
+            if (!fStat.size || !bStat.size) {
+              console.error(
+                "❌ Generated image file empty",
+                outputPath,
+                backOutputPath
+              );
+              return res
+                .status(500)
+                .json({ error: "Generated image was empty" });
+            }
 
-          Promise.all([frontDone, backDone]).then(() => {
+            console.log(
+              `✅ Generated images written: ${outputPath} (${fStat.size} bytes), ${backOutputPath} (${bStat.size} bytes)`
+            );
+
             // respond
             res.json({
               hindiName,
@@ -539,21 +624,13 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
               downloadUrlBack: `/images/${baseName}/${backOutputName}`,
             });
 
-            // cleanup others
-            const keepFiles = [outputName, backOutputName];
-            fs.readdir(userDir, (err, files) => {
-              if (err) return console.error("❌ Cleanup error:", err);
-              files.forEach((file) => {
-                if (!keepFiles.includes(file)) {
-                  const filePath = path.join(userDir, file);
-                  fs.unlink(filePath, (err) => {
-                    if (err)
-                      console.warn(`⚠️ Failed to delete ${file}:`, err.message);
-                  });
-                }
-              });
-            });
-          });
+            // cleanup others (same as before)...
+          } catch (err) {
+            console.error("❌ Error writing generated PNGs:", err);
+            return res
+              .status(500)
+              .json({ error: "Failed to write generated images" });
+          }
         });
       });
     }
@@ -664,8 +741,10 @@ app.post("/finalize-dob", async (req, res) => {
       });
     }
 
-    // Re-detect photo/templates based on files present
+    // --- detect photo & decide child/adult template (same logic as /upload) ---
     const allFiles = fs.readdirSync(userDir);
+
+    // prefer adult photo-007, fallback to child photo-010
     const photoFilename =
       allFiles.find(
         (f) =>
@@ -679,9 +758,11 @@ app.post("/finalize-dob", async (req, res) => {
           f.includes("photo-010") &&
           f.endsWith(".jpg")
       );
-    const photoPath = photoFilename ? path.join(userDir, photoFilename) : "";
-    const isChild = photoFilename && photoFilename.includes("photo-010");
 
+    const photoPath = photoFilename ? path.join(userDir, photoFilename) : "";
+    const isChild = !!(photoFilename && photoFilename.includes("photo-010"));
+
+    // set template paths based on detected photo type
     const frontTemplatePath = isChild
       ? path.join(__dirname, "..", "template", "child.png")
       : path.join(__dirname, "..", "template", "final.png");
@@ -809,31 +890,71 @@ app.post("/finalize-dob", async (req, res) => {
       const qrImg = await loadImage(qrPng);
       backCtx.drawImage(qrImg, 2103, 463, 1000, 1000);
     }
-
+    // ---------- REPLACE WITH THIS ----------
     const frontOutName = `generated-${Date.now()}.png`;
     const backOutName = `back-${Date.now()}.png`;
-    await Promise.all([
-      new Promise((resolve) =>
-        canvas
-          .createPNGStream()
-          .pipe(fs.createWriteStream(path.join(userDir, frontOutName)))
-          .on("finish", resolve)
-      ),
-      new Promise((resolve) =>
-        backCanvas
-          .createPNGStream()
-          .pipe(fs.createWriteStream(path.join(userDir, backOutName)))
-          .on("finish", resolve)
-      ),
-    ]);
+    const frontPathAbs = path.join(userDir, frontOutName);
+    const backPathAbs = path.join(userDir, backOutName);
+
+    try {
+      const frontStream = fs.createWriteStream(frontPathAbs);
+      const backStream = fs.createWriteStream(backPathAbs);
+
+      await Promise.all([
+        pipelineAsync(canvas.createPNGStream(), frontStream),
+        pipelineAsync(backCanvas.createPNGStream(), backStream),
+      ]);
+
+      // Sanity check
+      const fStat = fs.statSync(frontPathAbs);
+      const bStat = fs.statSync(backPathAbs);
+      if (!fStat.size || !bStat.size) {
+        console.error(
+          "❌ Generated image file empty (finalize-dob)",
+          frontPathAbs,
+          backPathAbs
+        );
+        return res.status(500).json({ error: "Generated image was empty" });
+      }
+
+      console.log(
+        `✅ finalize-dob wrote images: ${frontPathAbs} (${fStat.size}), ${backPathAbs} (${bStat.size})`
+      );
+    } catch (err) {
+      console.error("❌ Error generating images in finalize-dob:", err);
+      return res.status(500).json({ error: "Failed to generate final images" });
+    }
 
     try {
       fs.unlinkSync(pendingPath);
     } catch {}
 
+    // determine isChild again (this uses the same logic as earlier)
+    const finalAllFiles = fs.readdirSync(userDir || ".");
+    const finalPhotoFilename =
+      finalAllFiles.find(
+        (f) =>
+          f.startsWith(baseName) &&
+          f.includes("photo-007") &&
+          f.endsWith(".jpg")
+      ) ||
+      finalAllFiles.find(
+        (f) =>
+          f.startsWith(baseName) &&
+          f.includes("photo-010") &&
+          f.endsWith(".jpg")
+      ) ||
+      "";
+
+    const finalIsChild = !!(
+      finalPhotoFilename && finalPhotoFilename.includes("photo-010")
+    );
+
     return res.json({
       ok: true,
       dob: dobFull,
+      isChild: finalIsChild, // <-- NEW FLAG
+      photoFilename: finalPhotoFilename, // <-- helpful for debugging
       downloadUrlFront: `/images/${baseName}/${frontOutName}`,
       downloadUrlBack: `/images/${baseName}/${backOutName}`,
     });

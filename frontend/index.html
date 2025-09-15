@@ -95,11 +95,11 @@
           <div class="flip-card" id="cardFlipper">
             <div class="flip-card-inner">
               <div class="flip-card-front">
-                <img id="templateFront" alt="Front Aadhaar" loading="lazy" />
+                <img id="templateFront" alt="Front Aadhaar" loading="eager" />
                 <a id="downloadFront" href="#" target="_blank">Open Front</a>
               </div>
               <div class="flip-card-back">
-                <img id="templateBack" alt="Back Aadhaar" loading="lazy" />
+                <img id="templateBack" alt="Back Aadhaar" loading="eager" />
                 <a id="downloadBack" href="#" target="_blank">Open Back</a>
               </div>
             </div>
@@ -225,6 +225,8 @@
           >
             Cancel
           </button>
+
+          <!-- Confirm with inline spinner and text -->
           <button
             id="dobConfirm"
             type="button"
@@ -235,9 +237,17 @@
               background: #111827;
               color: #fff;
               cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              gap: 10px;
             "
           >
-            Confirm
+            <span id="dobBtnText">Confirm</span>
+            <span
+              id="dobSpinner"
+              class="spinner hidden"
+              aria-hidden="true"
+            ></span>
           </button>
         </div>
       </div>
