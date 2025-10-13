@@ -11,7 +11,106 @@ const { promisify } = require("util");
 const pipelineAsync = promisify(pipeline);
 // ---------------------------------------
 const gm = require("gm").subClass({ imageMagick: true });
+
 const PDFDocument = require("pdfkit"); // <-- NEW
+
+// ============================================
+// HINDI TEXT PROCESSING FIX - START
+// ============================================
+
+/**
+ * Enhanced Hindi text cleaning that preserves PDF structure
+ */
+function cleanHindiTextPreserveStructure(rawText) {
+  if (!rawText || typeof rawText !== 'string') return '';
+  
+  // 1. Normalize Unicode (NFC = composed form, better for Hindi)
+  let cleaned = rawText.normalize('NFC');
+  
+  // 2. Remove zero-width characters that PDF extraction adds
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, '');
+  
+  // 3. Fix only genuinely broken spaces (between matra and consonant)
+  const matraPattern = /[\u093E-\u094F\u0902\u0903]/;
+  const consonantPattern = /[\u0915-\u0939\u0958-\u095F]/;
+  
+  // Split into words first to avoid cross-word joining
+  const words = cleaned.split(/\s+/);
+  
+  const fixedWords = words.map(word => {
+    if (!/[\u0900-\u097F]/.test(word)) return word;
+    
+    let fixed = word;
+    let prevFixed;
+    
+    do {
+      prevFixed = fixed;
+      fixed = fixed.replace(
+        new RegExp(
+          `([\\u0900-\\u097F]${matraPattern.source})\\s+([\\u0915-\\u0939\\u0958-\\u095F])(?=\\s|$)`,
+          'g'
+        ),
+        '$1$2'
+      );
+    } while (fixed !== prevFixed);
+    
+    return fixed;
+  });
+  
+  return fixedWords
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .replace(/,+$/g, '')
+    .trim();
+}
+
+/**
+ * Extract name with minimal processing
+ */
+function extractNameSafely(lines, toIndex) {
+  if (toIndex === -1 || toIndex + 2 >= lines.length) {
+    return { hindiName: '', englishName: '' };
+  }
+  
+  const rawHindi = lines[toIndex + 1].trim();
+  const rawEnglish = lines[toIndex + 2].trim();
+  
+  const hindiName = cleanHindiTextPreserveStructure(rawHindi);
+  const englishName = rawEnglish.replace(/\s+/g, ' ').trim();
+  
+  return { hindiName, englishName };
+}
+
+/**
+ * Extract address with minimal processing
+ */
+function extractAddressSafely(lines, startIndex, language = 'hindi') {
+  if (startIndex === -1) return '';
+  
+  const addressLines = [];
+  const pinRegex = /[-–]\s*\d{6}$/;
+  
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line) continue;
+    
+    if (language === 'hindi') {
+      line = cleanHindiTextPreserveStructure(line);
+    } else {
+      line = line.replace(/\s+/g, ' ').replace(/,+$/, '').trim();
+    }
+    
+    if (line) addressLines.push(line);
+    if (pinRegex.test(lines[i])) break;
+  }
+  
+  return addressLines.join(', ');
+}
+
+// ============================================
+// HINDI TEXT PROCESSING FIX - END
+// ============================================
+
 
 const app = express();
 app.use(cors());
@@ -102,77 +201,20 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
           .map((l) => l.trim())
           .filter(Boolean);
 
-        // ✅ Name extraction
+// ✅ Name extraction - UPDATED
         let hindiName = "";
         let englishName = "";
         const toIndex = lines.findIndex((line) => /^To$/i.test(line));
 
-        if (toIndex !== -1 && toIndex + 2 < lines.length) {
-          function cleanHindiText(raw) {
-            const isHindiChar = (c) => /[\u0900-\u097F]/.test(c);
-            const words = raw.trim().split(/\s+/);
-            if (words.length <= 1) return raw.normalize("NFC");
+        const nameResult = extractNameSafely(lines, toIndex);
+        hindiName = nameResult.hindiName;
+        englishName = nameResult.englishName;
 
-            const firstWord = words[0];
-            const rest = words.slice(1).join(" ");
+        console.log("📝 Extracted Names:");
+        console.log("   Hindi:", hindiName);
+        console.log("   English:", englishName);
 
-            let cleaned = "";
-            let prevChar = "";
-            for (let i = 0; i < rest.length; i++) {
-              const char = rest[i];
-              if (char === " ") {
-                const next = rest[i + 1] || "";
-                const next2 = rest[i + 2] || "";
-                if (
-                  isHindiChar(prevChar) &&
-                  isHindiChar(next) &&
-                  next !== " " &&
-                  (next2 !== " " || !isHindiChar(next2))
-                ) {
-                  continue; // skip bad space
-                } else {
-                  cleaned += " ";
-                }
-              } else {
-                cleaned += char;
-                prevChar = char;
-              }
-            }
-            return `${firstWord} ${cleaned}`
-              .replace(/\s+/g, " ")
-              .trim()
-              .normalize("NFC");
-          }
-
-          function fixThirdHindiSpace(line) {
-            const isHindiChar = (c) => /[\u0900-\u097F]/.test(c);
-            let spaceCount = 0;
-            let result = "";
-            let i = 0;
-            while (i < line.length) {
-              const char = line[i];
-              if (char === " ") {
-                spaceCount++;
-                if (spaceCount === 3) {
-                  const prevChar = line[i - 1];
-                  const nextChar = line[i + 1] || "";
-                  if (isHindiChar(prevChar) && isHindiChar(nextChar)) {
-                    i++; // skip this space
-                    continue;
-                  }
-                }
-              }
-              result += char;
-              i++;
-            }
-            return result.replace(/\s+/g, " ").trim();
-          }
-
-          const rawHindi = lines[toIndex + 1].trim();
-          hindiName = cleanHindiText(rawHindi);
-          englishName = lines[toIndex + 2].replace(/\s+/g, " ").trim();
-        }
-
+        
         // --- DOB/YOB extraction (handles full DOB and year-only cases) ---
         let dob =
           (text.match(/DOB[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || [])[1] ||
@@ -205,72 +247,18 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
             /Details\s+as\s+on[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/
           ) || [])[1] || "";
 
-        let addressHindi = "",
-          addressEnglish = "";
-        const pinRegex = /[-–]\s*\d{6}$/;
-        const hindiStartIndex = lines.findIndex((line) =>
-          /पता[:]?/i.test(line)
-        );
-        const englishStartIndex = lines.findIndex((line) =>
-          /Address[:]?/i.test(line)
-        );
+       let addressHindi = "";
+        let addressEnglish = "";
+        const hindiStartIndex = lines.findIndex((line) => /पता[:]?/i.test(line));
+        const englishStartIndex = lines.findIndex((line) => /Address[:]?/i.test(line));
 
-        // Joins any SINGLE Devanagari letter that got split out between words
-        // Only joins when the previous chunk ends with a vowel matra (े, ो, ा, etc.)
-        // Example: "ठे र कादरी" -> "ठेर कादरी", but "घर राम" stays "घर राम"
-        function fixIsolatedHindiLetterAfterMatra(line) {
-          const devanagari = /[\u0900-\u097F]/;
-          const matraOrSign = /[ािीुूृेैोौँंॅ]/; // common vowel signs + nasalizations
-          let prev;
-          do {
-            prev = line;
-            line = line.replace(
-              new RegExp(
-                // group1 ends with a matra/sign, then spaces, then a single Devanagari letter,
-                // then a space and next token also starts with Devanagari
-                "([\\u0900-\\u097F]*" +
-                  matraOrSign.source +
-                  ")\\s+([\\u0900-\\u097F])\\s+(?=[\\u0900-\\u097F])",
-                "g"
-              ),
-              "$1$2 " // join the single letter to the left word, keep the space before next word
-            );
-          } while (line !== prev);
-          return line;
-        }
-        if (hindiStartIndex !== -1) {
-          const hindiLines = [];
-          for (let i = hindiStartIndex + 1; i < lines.length; i++) {
-            let cleaned = lines[i]
-              .replace(/\s+/g, " ") // safe: collapse multiple spaces
-              .replace(/,+$/, "") // safe: drop trailing commas only
-              .trim();
+        addressHindi = extractAddressSafely(lines, hindiStartIndex, 'hindi');
+        addressEnglish = extractAddressSafely(lines, englishStartIndex, 'english');
 
-            if (cleaned) {
-              // ✅ critical fix: remove artifacts like "ठे र" universally
-              cleaned = fixIsolatedHindiLetterAfterMatra(cleaned);
-              hindiLines.push(cleaned);
-            }
+        console.log("📍 Extracted Addresses:");
+        console.log("   Hindi:", addressHindi);
+        console.log("   English:", addressEnglish);
 
-            if (pinRegex.test(lines[i])) break;
-          }
-
-          // Keep exactly what PDF had (no other “smart” fixes)
-          addressHindi = hindiLines.join(", ");
-        }
-
-        if (englishStartIndex !== -1) {
-          const englishLines = [];
-          for (let i = englishStartIndex + 1; i < lines.length; i++) {
-            const cleaned = lines[i]
-              .replace(/\s+/g, " ")
-              .replace(/,+$/, "")
-              .trim();
-            if (cleaned) englishLines.push(cleaned);
-            if (pinRegex.test(lines[i])) break;
-          }
-          addressEnglish = englishLines.join(", ");
-        }
 
         const cmdImage = `${pdfimagesPath} -j "${decryptedPath}" "${imagePrefix}"`;
 
@@ -444,12 +432,18 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
           const outputName = `generated-${Date.now()}.png`;
           const outputPath = path.join(userDir, outputName);
 
-          const base = await loadImage(frontTemplatePath);
+const base = await loadImage(frontTemplatePath);
           const canvas = createCanvas(base.width, base.height);
           const ctx = canvas.getContext("2d");
           ctx.drawImage(base, 0, 0);
+          
+          // ✅ IMPROVED TEXT RENDERING SETTINGS
           ctx.fillStyle = "#000";
           ctx.textAlign = "left";
+          ctx.textBaseline = "alphabetic"; // Better baseline for Hindi
+          ctx.direction = "ltr"; // Force left-to-right
+          ctx.imageSmoothingEnabled = true; // Smooth text edges
+          ctx.imageSmoothingQuality = "high"; // Best quality
 
           // Final positions (from Photoshop)
           ctx.font = 'bold 60pt "NotoSansHindi"';
@@ -502,14 +496,18 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
             ctx.fillText(line, x, y);
           }
 
-          // back
-          const backBase = await loadImage(backTemplatePath);
+        const backBase = await loadImage(backTemplatePath);
           const backCanvas = createCanvas(backBase.width, backBase.height);
           const backCtx = backCanvas.getContext("2d");
           backCtx.drawImage(backBase, 0, 0);
 
+          // ✅ IMPROVED TEXT RENDERING SETTINGS FOR BACK
           backCtx.fillStyle = "#000";
           backCtx.textAlign = "left";
+          backCtx.textBaseline = "alphabetic";
+          backCtx.direction = "ltr";
+          backCtx.imageSmoothingEnabled = true;
+          backCtx.imageSmoothingQuality = "high";
 
           function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
             const words = text.split(" ");
@@ -785,12 +783,18 @@ app.post("/finalize-dob", async (req, res) => {
     } = pending.extracted;
 
     // Render (same as /upload, but with dobFull)
-    const base = await loadImage(frontTemplatePath);
+   const base = await loadImage(frontTemplatePath);
     const canvas = createCanvas(base.width, base.height);
     const ctx = canvas.getContext("2d");
     ctx.drawImage(base, 0, 0);
+    
+    // ✅ IMPROVED TEXT RENDERING SETTINGS
     ctx.fillStyle = "#000";
     ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.direction = "ltr";
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     ctx.font = 'bold 60pt "NotoSansHindi"';
     ctx.fillText(hindiName || "नाम नहीं मिला", 982, 553);
@@ -822,12 +826,18 @@ app.post("/finalize-dob", async (req, res) => {
       ctx.drawImage(userPhoto, 220, 510, 687, 862);
     }
 
-    const backBase = await loadImage(backTemplatePath);
+   const backBase = await loadImage(backTemplatePath);
     const backCanvas = createCanvas(backBase.width, backBase.height);
     const backCtx = backCanvas.getContext("2d");
     backCtx.drawImage(backBase, 0, 0);
+    
+    // ✅ IMPROVED TEXT RENDERING SETTINGS FOR BACK
     backCtx.fillStyle = "#000";
     backCtx.textAlign = "left";
+    backCtx.textBaseline = "alphabetic";
+    backCtx.direction = "ltr";
+    backCtx.imageSmoothingEnabled = true;
+    backCtx.imageSmoothingQuality = "high";
 
     function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
       const words = text.split(" ");
