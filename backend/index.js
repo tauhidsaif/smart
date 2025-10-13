@@ -509,23 +509,49 @@ const base = await loadImage(frontTemplatePath);
           backCtx.imageSmoothingEnabled = true;
           backCtx.imageSmoothingQuality = "high";
 
-          function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-            const words = text.split(" ");
-            let line = "";
-            for (let n = 0; n < words.length; n++) {
-              const testLine = line + words[n] + " ";
-              const metrics = ctx.measureText(testLine);
-              const testWidth = metrics.width;
-              if (testWidth > maxWidth && n > 0) {
-                ctx.fillText(line, x, y);
-                line = words[n] + " ";
-                y += lineHeight;
-              } else {
-                line = testLine;
-              }
-            }
-            ctx.fillText(line, x, y);
-          }
+      function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
+  // Don't split on ALL spaces - preserve Hindi word integrity
+  // Only split on commas or multiple spaces
+  const segments = text.split(/,\s*/); // split on comma+space
+  
+  let currentY = y;
+  
+  for (let seg of segments) {
+    seg = seg.trim();
+    if (!seg) continue;
+    
+    // Check if this segment fits on one line
+    const metrics = ctx.measureText(seg);
+    
+    if (metrics.width <= maxWidth) {
+      // Fits on one line
+      ctx.fillText(seg, x, currentY);
+      currentY += lineHeight;
+    } else {
+      // Need to wrap - split ONLY on safe boundaries (spaces between words)
+      const words = seg.split(/\s+/);
+      let line = "";
+      
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + (line ? " " : "") + words[i];
+        const testMetrics = ctx.measureText(testLine);
+        
+        if (testMetrics.width > maxWidth && line) {
+          ctx.fillText(line, x, currentY);
+          currentY += lineHeight;
+          line = words[i];
+        } else {
+          line = testLine;
+        }
+      }
+      
+      if (line) {
+        ctx.fillText(line, x, currentY);
+        currentY += lineHeight;
+      }
+    }
+  }
+}
 
           const hindiX = 200;
           const hindiY = 705;
@@ -839,23 +865,49 @@ app.post("/finalize-dob", async (req, res) => {
     backCtx.imageSmoothingEnabled = true;
     backCtx.imageSmoothingQuality = "high";
 
-    function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-      const words = text.split(" ");
+   function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
+  // Don't split on ALL spaces - preserve Hindi word integrity
+  // Only split on commas or multiple spaces
+  const segments = text.split(/,\s*/); // split on comma+space
+  
+  let currentY = y;
+  
+  for (let seg of segments) {
+    seg = seg.trim();
+    if (!seg) continue;
+    
+    // Check if this segment fits on one line
+    const metrics = ctx.measureText(seg);
+    
+    if (metrics.width <= maxWidth) {
+      // Fits on one line
+      ctx.fillText(seg, x, currentY);
+      currentY += lineHeight;
+    } else {
+      // Need to wrap - split ONLY on safe boundaries (spaces between words)
+      const words = seg.split(/\s+/);
       let line = "";
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + " ";
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          ctx.fillText(line, x, y);
-          line = words[n] + " ";
-          y += lineHeight;
+      
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + (line ? " " : "") + words[i];
+        const testMetrics = ctx.measureText(testLine);
+        
+        if (testMetrics.width > maxWidth && line) {
+          ctx.fillText(line, x, currentY);
+          currentY += lineHeight;
+          line = words[i];
         } else {
           line = testLine;
         }
       }
-      ctx.fillText(line, x, y);
+      
+      if (line) {
+        ctx.fillText(line, x, currentY);
+        currentY += lineHeight;
+      }
     }
-
+  }
+}
     const hindiX = 200,
       hindiY = 705;
     const englishX = 200,
