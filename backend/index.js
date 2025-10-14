@@ -22,47 +22,30 @@ const PDFDocument = require("pdfkit"); // <-- NEW
  * Enhanced Hindi text cleaning that preserves PDF structure
  */
 function cleanHindiTextPreserveStructure(rawText) {
-  if (!rawText || typeof rawText !== 'string') return '';
-  
-  // 1. Normalize Unicode (NFC = composed form, better for Hindi)
-  let cleaned = rawText.normalize('NFC');
-  
-  // 2. Remove zero-width characters that PDF extraction adds
-  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, '');
-  
-  // 3. Fix only genuinely broken spaces (between matra and consonant)
-  const matraPattern = /[\u093E-\u094F\u0902\u0903]/;
-  const consonantPattern = /[\u0915-\u0939\u0958-\u095F]/;
-  
-  // Split into words first to avoid cross-word joining
-  const words = cleaned.split(/\s+/);
-  
-  const fixedWords = words.map(word => {
-    if (!/[\u0900-\u097F]/.test(word)) return word;
-    
-    let fixed = word;
-    let prevFixed;
-    
-    do {
-      prevFixed = fixed;
-      fixed = fixed.replace(
-        new RegExp(
-          `([\\u0900-\\u097F]${matraPattern.source})\\s+([\\u0915-\\u0939\\u0958-\\u095F])(?=\\s|$)`,
-          'g'
-        ),
-        '$1$2'
-      );
-    } while (fixed !== prevFixed);
-    
-    return fixed;
-  });
-  
-  return fixedWords
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/,+$/g, '')
-    .trim();
+  if (!rawText || typeof rawText !== "string") return "";
+
+  // Normalize Unicode composition for Hindi
+  let cleaned = rawText.normalize("NFC");
+
+  // Remove zero-width characters
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, "");
+
+  // Merge wrongly separated matras and consonants
+  cleaned = cleaned.replace(
+    /([\u0915-\u0939\u0958-\u095F])\s+([\u093E-\u094F\u0902\u0903])/g,
+    "$1$2"
+  );
+  cleaned = cleaned.replace(
+    /([\u093E-\u094F\u0902\u0903])\s+([\u0915-\u0939\u0958-\u095F])/g,
+    "$1$2"
+  );
+
+  // Remove extra commas/spaces
+  cleaned = cleaned.replace(/\s{2,}/g, " ").replace(/\s+,/g, ",").trim();
+
+  return cleaned;
 }
+
 
 /**
  * Extract name with minimal processing
@@ -538,12 +521,13 @@ drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 55
           const englishY = 1170;
 
           function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-  // Split by spaces, preserve Hindi script integrity
-  const words = text.split(/\s+/);
+  // Don’t break Hindi graphemes — treat combined syllables as one unit
+  const words = text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g) || [];
+
   let line = "";
 
   for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? " " : "") + words[n];
+    const testLine = line + (line ? "" : "") + words[n];
     const metrics = ctx.measureText(testLine);
     const testWidth = metrics.width;
 
@@ -829,14 +813,16 @@ app.post("/finalize-dob", async (req, res) => {
 
     // Helper function for wrapping text
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(/\s+/);
+ // Don’t break Hindi graphemes — treat combined syllables as one unit
+  const words = text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g) || [];
+
   let line = "";
-  
+
   for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? " " : "") + words[n];
+    const testLine = line + (line ? "" : "") + words[n];
     const metrics = ctx.measureText(testLine);
     const testWidth = metrics.width;
-    
+
     if (testWidth > maxWidth && line) {
       ctx.fillText(line.trim(), x, y);
       line = words[n];
@@ -845,6 +831,7 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
       line = testLine;
     }
   }
+
   if (line) {
     ctx.fillText(line.trim(), x, y);
   }
