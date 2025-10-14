@@ -446,8 +446,8 @@ const base = await loadImage(frontTemplatePath);
           ctx.imageSmoothingQuality = "high"; // Best quality
 
           // Final positions (from Photoshop)
-          ctx.font = 'bold 60pt "NotoSansHindi"';
-          ctx.fillText(hindiName || "नाम नहीं मिला", 982, 553);
+         ctx.font = 'bold 60pt "NotoSansHindi"';
+drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
 
           ctx.font = "bold 69pt Arial";
           ctx.fillText(englishName || "Name Not Found", 982, 677);
@@ -509,23 +509,28 @@ const base = await loadImage(frontTemplatePath);
           backCtx.imageSmoothingEnabled = true;
           backCtx.imageSmoothingQuality = "high";
 
-          function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-            const words = text.split(" ");
-            let line = "";
-            for (let n = 0; n < words.length; n++) {
-              const testLine = line + words[n] + " ";
-              const metrics = ctx.measureText(testLine);
-              const testWidth = metrics.width;
-              if (testWidth > maxWidth && n > 0) {
-                ctx.fillText(line, x, y);
-                line = words[n] + " ";
-                y += lineHeight;
-              } else {
-                line = testLine;
-              }
-            }
-            ctx.fillText(line, x, y);
-          }
+         function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  // Split by spaces but keep Hindi conjuncts together
+  const words = text.split(/\s+/);
+  let line = "";
+  
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + (line ? " " : "") + words[n];
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    
+    if (testWidth > maxWidth && line) {
+      ctx.fillText(line.trim(), x, y);
+      line = words[n];
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) {
+    ctx.fillText(line.trim(), x, y);
+  }
+}
 
           const hindiX = 200;
           const hindiY = 705;
@@ -796,8 +801,31 @@ app.post("/finalize-dob", async (req, res) => {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
+    // Helper function for wrapping text
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(/\s+/);
+  let line = "";
+  
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + (line ? " " : "") + words[n];
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    
+    if (testWidth > maxWidth && line) {
+      ctx.fillText(line.trim(), x, y);
+      line = words[n];
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) {
+    ctx.fillText(line.trim(), x, y);
+  }
+}
+
     ctx.font = 'bold 60pt "NotoSansHindi"';
-    ctx.fillText(hindiName || "नाम नहीं मिला", 982, 553);
+drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
 
     ctx.font = "bold 69pt Arial";
     ctx.fillText(englishName || "Name Not Found", 982, 677);
@@ -839,22 +867,28 @@ app.post("/finalize-dob", async (req, res) => {
     backCtx.imageSmoothingEnabled = true;
     backCtx.imageSmoothingQuality = "high";
 
-    function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-      const words = text.split(" ");
-      let line = "";
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + " ";
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          ctx.fillText(line, x, y);
-          line = words[n] + " ";
-          y += lineHeight;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, x, y);
+  function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
+  // Split by spaces, preserve Hindi script integrity
+  const words = text.split(/\s+/);
+  let line = "";
+  
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + (line ? " " : "") + words[n];
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    
+    if (testWidth > maxWidth && line) {
+      ctx.fillText(line.trim(), x, y);
+      line = words[n];
+      y += lineHeight;
+    } else {
+      line = testLine;
     }
+  }
+  if (line) {
+    ctx.fillText(line.trim(), x, y);
+  }
+}
 
     const hindiX = 200,
       hindiY = 705;
