@@ -118,12 +118,10 @@ function extractAddressSafely(lines, startIndex, language = "hindi") {
 }
 
 /**
- * Wrap and render Hindi + English mixed text safely on Canvas.
- * Uses grapheme-based segmentation (via Graphemer) to avoid breaking Hindi glyphs.
- * 
- * - Preserves natural spaces (does NOT merge them).
- * - Wraps based on actual rendered width.
- * - Supports ellipsis, auto font shrink, and max line count.
+ * Improved Hindi-safe text wrapping.
+ * ✅ Never cuts a word in half — if word doesn't fit, moves to next line.
+ * ✅ Works with Hindi + English + punctuation mixed.
+ * ✅ Uses Graphemer + regex word grouping for safe rendering.
  */
 function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
   const { maxLines = Infinity, ellipses = true, autoShrink = false, minFontSize = 14 } = opts;
@@ -133,12 +131,18 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
     return;
   }
 
-  // --- Use Graphemer for safe grapheme segmentation (handles Hindi correctly)
-  const Graphemer = require("graphemer").default;
-  const splitter = new Graphemer();
-  const clusters = splitter.splitGraphemes(text.normalize("NFC")); // normalize for safety
+  const splitter = new (require("graphemer").default)();
+  text = text.normalize("NFC").replace(/[\u200B-\u200D\uFEFF]/g, "");
 
-  // ---- Auto shrink font if allowed ----
+  // Split into "words" — keeps Hindi, English, digits, punctuation & spaces grouped
+  const tokens = Array.from(
+    text.matchAll(
+      /[\u0900-\u097F]+(?:[\u093E-\u094F\u0902\u0903]*)*|[A-Za-z0-9]+|[,.:;!?()\-/]+|\s+/g
+    ),
+    (m) => m[0]
+  ).filter(Boolean);
+
+  // Optional font autoshrink
   if (autoShrink && isFinite(maxLines)) {
     const origFont = ctx.font;
     const fontMatch = origFont.match(/(\d+(?:\.\d+)?)pt/);
@@ -146,17 +150,16 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
       let size = parseFloat(fontMatch[1]);
       while (size >= minFontSize) {
         ctx.font = origFont.replace(/(\d+(?:\.\d+)?)pt/, `${size}pt`);
-        const testLines = buildLines(ctx, clusters, maxWidth);
-        if (testLines.length <= maxLines) break;
+        const linesTest = buildLines(ctx, tokens, maxWidth);
+        if (linesTest.length <= maxLines) break;
         size -= 2;
       }
     }
   }
 
-  // ---- Build lines safely ----
-  const lines = buildLines(ctx, clusters, maxWidth);
+  const lines = buildLines(ctx, tokens, maxWidth);
 
-  // ---- Handle overflow (too many lines) ----
+  // Handle ellipsis
   const finalLines =
     lines.length > maxLines
       ? lines.slice(0, maxLines).map((line, i, arr) => {
@@ -170,31 +173,44 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
         })
       : lines;
 
-  // ---- Draw lines ----
-  finalLines.forEach((ln, i) => {
-    ctx.fillText(ln, x, y + i * lineHeight);
-  });
+  // Draw
+  finalLines.forEach((ln, i) => ctx.fillText(ln, x, y + i * lineHeight));
 
-  // ===================================================
-  // Helper: builds lines using grapheme-based wrapping
-  // ===================================================
-  function buildLines(ctxLocal, clusters, widthLimit) {
+  // Core logic: break by word, not character
+  function buildLines(ctxLocal, words, limit) {
     const out = [];
-    let currentLine = "";
+    let current = "";
 
-    for (const cluster of clusters) {
-      const testLine = currentLine + cluster;
-      const width = ctxLocal.measureText(testLine).width;
+    for (const word of words) {
+      const test = current + word;
+      const width = ctxLocal.measureText(test.trim()).width;
 
-      if (width > widthLimit && currentLine.length > 0) {
-        out.push(currentLine.trim());
-        currentLine = cluster.trimStart();
+      if (width > limit && current.trim().length > 0) {
+        out.push(current.trim());
+        // if even single word longer than line — break graphemes safely
+        if (ctxLocal.measureText(word.trim()).width > limit) {
+          const clusters = splitter.splitGraphemes(word.trim());
+          let chunk = "";
+          for (const c of clusters) {
+            const testChunk = chunk + c;
+            if (ctxLocal.measureText(testChunk).width > limit && chunk) {
+              out.push(chunk.trim());
+              chunk = c;
+            } else {
+              chunk = testChunk;
+            }
+          }
+          if (chunk) current = chunk + " ";
+          else current = "";
+        } else {
+          current = word.trimStart();
+        }
       } else {
-        currentLine = testLine;
+        current = test;
       }
     }
 
-    if (currentLine) out.push(currentLine.trim());
+    if (current.trim()) out.push(current.trim());
     return out;
   }
 }
