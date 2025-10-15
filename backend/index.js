@@ -119,11 +119,9 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
     return;
   }
 
-// Split Hindi and English words correctly while keeping matras with letters
+  // Split into Hindi and non-Hindi tokens, preserving graphemes
 const tokens = Array.from(
-  text.matchAll(
-    /[\u0900-\u097F]+(?:[\u093E-\u094F\u0901-\u0903\u094D]*)*(?=\s|$)|[A-Za-z]+|[0-9]+|[,.:;/-]+|\s+/g
-  ),
+  text.matchAll(/[\u0900-\u097F]+(?:[\u093E-\u094F\u0902\u0903]*)*|[A-Za-z]+|[0-9]+|[,.:;/-]+|\s+/g),
   m => m[0]
 ).filter(t => t.trim().length > 0);
 
