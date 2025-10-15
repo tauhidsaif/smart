@@ -120,12 +120,10 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
   }
 
   // Split into Hindi and non-Hindi tokens, preserving graphemes
- const tokens =
-  text
-    .match(/[\u0900-\u097F]+|[A-Za-z]+|[0-9]+|[,.:;/-]+|\S+/g)
-    ?.map(t => t.trim())
-    .filter(Boolean) || [];
-
+const tokens = Array.from(
+  text.matchAll(/[\u0900-\u097F]+(?:[\u093E-\u094F\u0902\u0903]*)*|[A-Za-z]+|[0-9]+|[,.:;/-]+|\s+/g),
+  m => m[0]
+).filter(t => t.trim().length > 0);
 
   // ---- Auto shrink font if allowed ----
   if (autoShrink && isFinite(maxLines)) {
@@ -604,7 +602,7 @@ const paddingRight = 20; // keep small gap between address and QR
 
 // Hindi address max width: stop before QR
 const hindiMaxWidth = Math.max(300, qrLeft - paddingRight - hindiX); // fallback minimum width
-backCtx.font = '70pt "NotoSansHindi"';
+backCtx.font = '75pt "NotoSansHindi"';
 wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, hindiMaxWidth, 120, {
   maxLines: 6,
   ellipses: true,
