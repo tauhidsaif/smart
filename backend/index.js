@@ -120,8 +120,12 @@ function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
   }
 
   // Split into Hindi and non-Hindi tokens, preserving graphemes
-  const tokens =
-    text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g)?.map(t => t.trim()).filter(Boolean) || [];
+ const tokens =
+  text
+    .match(/[\u0900-\u097F]+|[A-Za-z]+|[0-9]+|[,.:;/-]+|\S+/g)
+    ?.map(t => t.trim())
+    .filter(Boolean) || [];
+
 
   // ---- Auto shrink font if allowed ----
   if (autoShrink && isFinite(maxLines)) {
