@@ -548,11 +548,29 @@ const base = await loadImage(frontTemplatePath);
           ctx.fillText(issueDate, 0, 0);
           ctx.restore();
 
-          // profile photo
-          if (photoPath && fs.existsSync(photoPath)) {
-            const userPhoto = await loadImage(photoPath);
-            ctx.drawImage(userPhoto, 220, 510, 687, 862);
-          }
+          // profile photo: preprocess to increase brightness & contrast, then draw
+if (photoPath && fs.existsSync(photoPath)) {
+  const adjPhoto = path.join(userDir, `${baseName}_photo_adj.jpg`);
+  try {
+    // gm.modulate(brightness,saturation,hue).contrast(level)
+    // Use modulate to raise brightness a bit (e.g. 110%), and contrast via -contrast multiple times
+    // Here we increase brightness 12% and apply a mild contrast increase
+    await new Promise((resolve, reject) => {
+      gm(photoPath)
+        .modulate(112, 100, 100) // brightness 112%, saturation 100%, hue 100%
+        .contrast(1) // apply small contrast boost (call multiple times if needed)
+        .write(adjPhoto, (err) => (err ? reject(err) : resolve()));
+    });
+    const userPhoto = await loadImage(adjPhoto);
+    ctx.drawImage(userPhoto, 220, 510, 687, 862);
+    // optional: unlink adjPhoto later if you want cleanup
+  } catch (err) {
+    console.warn("Brightness/contrast adjust failed, drawing original:", err);
+    const userPhoto = await loadImage(photoPath);
+    ctx.drawImage(userPhoto, 220, 510, 687, 862);
+  }
+}
+
 
       
         const backBase = await loadImage(backTemplatePath);
@@ -577,12 +595,33 @@ const base = await loadImage(frontTemplatePath);
 
 
 
-          backCtx.font = '70pt "NotoSansHindi"';
-          wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
+         // Calculate QR left X and dynamic max widths so address never crosses QR
+// Values must match where QR is drawn: backCtx.drawImage(qrImg, qrX, qrY, qrW, qrH)
+const qrX = 2103;
+const qrW = 1000;
+const qrLeft = qrX; // left edge of QR in canvas coordinates
+const paddingRight = 20; // keep small gap between address and QR
 
+// Hindi address max width: stop before QR
+const hindiMaxWidth = Math.max(300, qrLeft - paddingRight - hindiX); // fallback minimum width
+backCtx.font = '70pt "NotoSansHindi"';
+wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, hindiMaxWidth, 120, {
+  maxLines: 6,
+  ellipses: true,
+  autoShrink: true,
+  minFontSize: 30,
+});
 
-          backCtx.font = "62pt Arial";
-          wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
+// English address max width: stop before QR
+const englishMaxWidth = Math.max(300, qrLeft - paddingRight - englishX);
+backCtx.font = "62pt Arial";
+wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, englishMaxWidth, 120, {
+  maxLines: 6,
+  ellipses: true,
+  autoShrink: true,
+  minFontSize: 26,
+});
+
 
 
           backCtx.save();
@@ -856,10 +895,29 @@ app.post("/finalize-dob", async (req, res) => {
     ctx.fillText(issueDate || "", 0, 0);
     ctx.restore();
 
-    if (photoPath && fs.existsSync(photoPath)) {
-      const userPhoto = await loadImage(photoPath);
-      ctx.drawImage(userPhoto, 220, 510, 687, 862);
-    }
+   // profile photo: preprocess to increase brightness & contrast, then draw
+if (photoPath && fs.existsSync(photoPath)) {
+  const adjPhoto = path.join(userDir, `${baseName}_photo_adj.jpg`);
+  try {
+    // gm.modulate(brightness,saturation,hue).contrast(level)
+    // Use modulate to raise brightness a bit (e.g. 110%), and contrast via -contrast multiple times
+    // Here we increase brightness 12% and apply a mild contrast increase
+    await new Promise((resolve, reject) => {
+      gm(photoPath)
+        .modulate(112, 100, 100) // brightness 112%, saturation 100%, hue 100%
+        .contrast(1) // apply small contrast boost (call multiple times if needed)
+        .write(adjPhoto, (err) => (err ? reject(err) : resolve()));
+    });
+    const userPhoto = await loadImage(adjPhoto);
+    ctx.drawImage(userPhoto, 220, 510, 687, 862);
+    // optional: unlink adjPhoto later if you want cleanup
+  } catch (err) {
+    console.warn("Brightness/contrast adjust failed, drawing original:", err);
+    const userPhoto = await loadImage(photoPath);
+    ctx.drawImage(userPhoto, 220, 510, 687, 862);
+  }
+}
+
 
    const backBase = await loadImage(backTemplatePath);
     const backCanvas = createCanvas(backBase.width, backBase.height);
