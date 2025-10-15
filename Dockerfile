@@ -1,10 +1,10 @@
-# Use official Node.js base image
+# ✅ Use official Node.js 20 image (includes Intl.Segmenter)
 FROM node:20
 
 # Set working directory
 WORKDIR /app
 
-# Install OS-level dependencies and Hindi fonts
+# ✅ Install all system dependencies + Hindi fonts
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     graphicsmagick \
@@ -19,21 +19,28 @@ RUN apt-get update && apt-get install -y \
     fonts-noto-cjk \
     fonts-noto-unhinted \
     fonts-noto-color-emoji \
-    fonts-deva \
+    fonts-noto-devanagari \
+    fonts-noto-sans-devanagari \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package.json and install dependencies
-COPY package*.json ./
-RUN npm install
+# ✅ Ensure NotoSansDevanagari is registered correctly
+ENV FONTCONFIG_PATH=/etc/fonts
+ENV LANG=hi_IN.UTF-8
+ENV LANGUAGE=hi_IN:hi
+ENV LC_ALL=hi_IN.UTF-8
 
-# Install pdfkit for PDF generation
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Install pdfkit explicitly (for clarity)
 RUN npm install pdfkit
 
-# Copy the rest of the project
+# ✅ Copy source code
 COPY . .
 
-# Expose the port your app runs on
+# ✅ Expose app port
 EXPOSE 5000
 
-# Start the app
+# ✅ Start app
 CMD ["npm", "start"]

@@ -5,6 +5,8 @@ const fs = require("fs");
 const path = require("path");
 const { exec, execSync } = require("child_process");
 const { createCanvas, loadImage, registerFont } = require("canvas");
+require("util").inspect.defaultOptions.depth = null;
+
 // ---------- ADD THIS NEAR TOP ----------
 const { pipeline } = require("stream");
 const { promisify } = require("util");
@@ -22,7 +24,7 @@ const PDFDocument = require("pdfkit"); // <-- NEW
  * Enhanced Hindi text cleaning that preserves PDF structure
  */
 function cleanHindiTextPreserveStructure(rawText) {
-  if (!rawText || typeof rawText !== "string") return "";
+   if (!rawText || typeof rawText !== "string") return "";
 
   // Normalize Unicode composition for Hindi
   let cleaned = rawText.normalize("NFC");
@@ -30,27 +32,30 @@ function cleanHindiTextPreserveStructure(rawText) {
   // Remove zero-width characters
   cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, "");
 
-  // Merge wrongly separated matras and consonants
-  cleaned = cleaned.replace(
-    /([\u0915-\u0939\u0958-\u095F])\s+([\u093E-\u094F\u0902\u0903])/g,
-    "$1$2"
-  );
-  cleaned = cleaned.replace(
-    /([\u093E-\u094F\u0902\u0903])\s+([\u0915-\u0939\u0958-\u095F])/g,
-    "$1$2"
-  );
+  // ✅ Use Intl.Segmenter to safely segment Hindi text into graphemes
+  try {
+    const segmenter = new Intl.Segmenter("hi", { granularity: "grapheme" });
+    const segments = Array.from(segmenter.segment(cleaned), s => s.segment);
+    cleaned = segments.join("");
+  } catch {
+    // fallback for older Node.js
+    cleaned = cleaned.replace(/\s{2,}/g, " ").trim();
+  }
 
-  // Normalize repeated punctuation like ,, or , ,  -> single comma
-  cleaned = cleaned.replace(/,+/g, ",").replace(/,\s*,+/g, ","); 
+  // Remove spaces before commas and collapse multiple commas
+  cleaned = cleaned.replace(/\s+,/g, ",").replace(/,+/g, ",").trim();
 
-  // Remove spaces before commas and collapse multi-spaces
-  cleaned = cleaned.replace(/\s+,/g, ",").replace(/\s{2,}/g, " ").trim();
-
-  // Remove leading/trailing commas and whitespace
+  // Remove leading/trailing commas
   cleaned = cleaned.replace(/^,+|,+$/g, "").trim();
 
   return cleaned;
+
 }
+
+if (typeof Intl === "undefined" || !Intl.Segmenter) {
+  global.Intl = require("intl-segmenter-polyfill");
+}
+
 
 
 /**
