@@ -24,12 +24,12 @@ const PDFDocument = require("pdfkit"); // <-- NEW
  * Enhanced Hindi text cleaning that preserves PDF structure
  */
 function cleanHindiTextPreserveStructure(rawText) {
-   if (!rawText || typeof rawText !== "string") return "";
+  if (!rawText || typeof rawText !== "string") return "";
 
   // Normalize Unicode composition for Hindi
   let cleaned = rawText.normalize("NFC");
 
-  // Remove zero-width characters
+  // Remove zero-width and invisible control characters
   cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, "");
 
   // ✅ Use Intl.Segmenter to safely segment Hindi text into graphemes
@@ -45,11 +45,14 @@ function cleanHindiTextPreserveStructure(rawText) {
   // Remove spaces before commas and collapse multiple commas
   cleaned = cleaned.replace(/\s+,/g, ",").replace(/,+/g, ",").trim();
 
+  // ✅ NEW FIX: remove accidental spaces *inside* Hindi words
+  // Example: "कु मार" → "कुमार", "राज पूत" → "राजपूत", "डिडौ ली" → "डिडौली"
+  cleaned = cleaned.replace(/([\u0900-\u097F])\s+([\u0900-\u097F])/g, "$1$2");
+
   // Remove leading/trailing commas
   cleaned = cleaned.replace(/^,+|,+$/g, "").trim();
 
   return cleaned;
-
 }
 
 if (typeof Intl === "undefined" || !Intl.Segmenter) {
