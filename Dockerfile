@@ -4,7 +4,7 @@ FROM node:20
 # Set working directory
 WORKDIR /app
 
-# ✅ Install all system dependencies + Hindi fonts
+# ✅ Install all system dependencies + Hindi fonts (Bookworm compatible)
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     graphicsmagick \
@@ -15,32 +15,27 @@ RUN apt-get update && apt-get install -y \
     libgif-dev \
     librsvg2-dev \
     build-essential \
-    fonts-noto-core \
+    fonts-noto \
     fonts-noto-cjk \
-    fonts-noto-unhinted \
     fonts-noto-color-emoji \
-    fonts-noto-devanagari \
-    fonts-noto-sans-devanagari \
     && rm -rf /var/lib/apt/lists/*
 
-# ✅ Ensure NotoSansDevanagari is registered correctly
+# ✅ Ensure Hindi fonts load correctly
 ENV FONTCONFIG_PATH=/etc/fonts
 ENV LANG=hi_IN.UTF-8
 ENV LANGUAGE=hi_IN:hi
 ENV LC_ALL=hi_IN.UTF-8
 
-# Copy package files and install dependencies
+# ✅ Copy package files and install dependencies
 COPY package*.json ./
 RUN npm ci --omit=dev
-
-# Install pdfkit explicitly (for clarity)
 RUN npm install pdfkit
 
-# ✅ Copy source code
+# ✅ Copy full source code
 COPY . .
 
-# ✅ Expose app port
+# ✅ Expose the port
 EXPOSE 5000
 
-# ✅ Start app
+# ✅ Start app using dynamic port binding (for Render)
 CMD ["npm", "start"]
