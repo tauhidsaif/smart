@@ -577,14 +577,12 @@ const base = await loadImage(frontTemplatePath);
 
 
 
-          backCtx.font = '76pt "NotoSansHindi"';
-wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 128, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
+          backCtx.font = '70pt "NotoSansHindi"';
+          wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
 
 
-
-        backCtx.font = "68pt Arial";
-wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 128, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
-
+          backCtx.font = "62pt Arial";
+          wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
 
 
           backCtx.save();
