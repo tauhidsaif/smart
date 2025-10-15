@@ -40,8 +40,14 @@ function cleanHindiTextPreserveStructure(rawText) {
     "$1$2"
   );
 
-  // Remove extra commas/spaces
-  cleaned = cleaned.replace(/\s{2,}/g, " ").replace(/\s+,/g, ",").trim();
+  // Normalize repeated punctuation like ,, or , ,  -> single comma
+  cleaned = cleaned.replace(/,+/g, ",").replace(/,\s*,+/g, ","); 
+
+  // Remove spaces before commas and collapse multi-spaces
+  cleaned = cleaned.replace(/\s+,/g, ",").replace(/\s{2,}/g, " ").trim();
+
+  // Remove leading/trailing commas and whitespace
+  cleaned = cleaned.replace(/^,+|,+$/g, "").trim();
 
   return cleaned;
 }
@@ -67,28 +73,111 @@ function extractNameSafely(lines, toIndex) {
 /**
  * Extract address with minimal processing
  */
-function extractAddressSafely(lines, startIndex, language = 'hindi') {
-  if (startIndex === -1) return '';
-  
+function extractAddressSafely(lines, startIndex, language = "hindi") {
+  if (startIndex === -1) return "";
+
   const addressLines = [];
   const pinRegex = /[-–]\s*\d{6}$/;
-  
+
   for (let i = startIndex + 1; i < lines.length; i++) {
     let line = lines[i].trim();
     if (!line) continue;
-    
-    if (language === 'hindi') {
+
+    // Clean line by language
+    if (language === "hindi") {
       line = cleanHindiTextPreserveStructure(line);
     } else {
-      line = line.replace(/\s+/g, ' ').replace(/,+$/, '').trim();
+      line = line.replace(/\s+/g, " ").trim();
     }
-    
-    if (line) addressLines.push(line);
+
+    // Remove leading/trailing commas and extra commas inside the line
+    line = line.replace(/,+/g, ",").replace(/^,+|,+$/g, "").trim();
+    if (!line) continue;
+
+    addressLines.push(line);
+
+    // stop if we reach a pin-like marker (common in Aadhaar)
     if (pinRegex.test(lines[i])) break;
   }
-  
-  return addressLines.join(', ');
+
+  // Filter out empty segments and join with single comma+space
+  const joined = addressLines.filter(Boolean).join(", ").replace(/,+/g, ",").replace(/,\s*,/g, ",").trim();
+
+  // Final cleanup: remove repeated commas and leading/trailing punctuation
+  return joined.replace(/\s{2,}/g, " ").replace(/^,+|,+$/g, "").trim();
 }
+
+/**
+ * Wrap and render text safely for Hindi + English mixed content.
+ * It auto-breaks lines based on measured width and supports ellipsis + font shrinking.
+ */
+function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
+  const { maxLines = Infinity, ellipses = true, autoShrink = false, minFontSize = 14 } = opts;
+
+  if (!text) {
+    ctx.fillText("—", x, y);
+    return;
+  }
+
+  // Split into Hindi and non-Hindi tokens, preserving graphemes
+  const tokens =
+    text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g)?.map(t => t.trim()).filter(Boolean) || [];
+
+  // ---- Auto shrink font if allowed ----
+  if (autoShrink && isFinite(maxLines)) {
+    const origFont = ctx.font;
+    const fontMatch = origFont.match(/(\d+(?:\.\d+)?)pt/);
+    if (fontMatch) {
+      let size = parseFloat(fontMatch[1]);
+      while (size >= minFontSize) {
+        ctx.font = origFont.replace(/(\d+(?:\.\d+)?)pt/, `${size}pt`);
+        const linesTest = buildLines(ctx, tokens, maxWidth);
+        if (linesTest.length <= maxLines) break;
+        size -= 2; // shrink gradually
+      }
+    }
+  }
+
+  // ---- Build actual lines based on width ----
+  const lines = buildLines(ctx, tokens, maxWidth);
+
+  // ---- Handle overflow (too many lines) ----
+  const finalLines =
+    lines.length > maxLines
+      ? lines.slice(0, maxLines).map((line, i, arr) => {
+          if (i === arr.length - 1 && ellipses) {
+            while (ctx.measureText(line + "...").width > maxWidth && line.length > 0)
+              line = line.slice(0, -1);
+            return line.trim() + "...";
+          }
+          return line;
+        })
+      : lines;
+
+  // ---- Draw lines ----
+  finalLines.forEach((ln, i) => ctx.fillText(ln, x, y + i * lineHeight));
+
+  // Helper that builds lines respecting Hindi graphemes
+  function buildLines(ctxLocal, toks, widthLimit) {
+    const out = [];
+    let line = "";
+
+    for (const token of toks) {
+      const isPunct = /^[,.\-:;]+$/.test(token);
+      const testLine = line ? (isPunct ? line + token : line + " " + token) : token;
+      const w = ctxLocal.measureText(testLine).width;
+      if (w > widthLimit && line) {
+        out.push(line.trim());
+        line = token;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) out.push(line.trim());
+    return out;
+  }
+}
+
 
 // ============================================
 // HINDI TEXT PROCESSING FIX - END
@@ -430,7 +519,7 @@ const base = await loadImage(frontTemplatePath);
 
           // Final positions (from Photoshop)
          ctx.font = 'bold 60pt "NotoSansHindi"';
-drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
+          wrapTextForCanvas(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
 
           ctx.font = "bold 69pt Arial";
           ctx.fillText(englishName || "Name Not Found", 982, 677);
@@ -461,24 +550,7 @@ drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 55
             ctx.drawImage(userPhoto, 220, 510, 687, 862);
           }
 
-          function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-            const words = text.split(" ");
-            let line = "";
-            for (let n = 0; n < words.length; n++) {
-              const testLine = line + words[n] + " ";
-              const metrics = ctx.measureText(testLine);
-              const testWidth = metrics.width;
-              if (testWidth > maxWidth && n > 0) {
-                ctx.fillText(line, x, y);
-                line = words[n] + " ";
-                y += lineHeight;
-              } else {
-                line = testLine;
-              }
-            }
-            ctx.fillText(line, x, y);
-          }
-
+      
         const backBase = await loadImage(backTemplatePath);
           const backCanvas = createCanvas(backBase.width, backBase.height);
           const backCtx = backCanvas.getContext("2d");
@@ -492,80 +564,22 @@ drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 55
           backCtx.imageSmoothingEnabled = true;
           backCtx.imageSmoothingQuality = "high";
 
-         function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  // Split by spaces but keep Hindi conjuncts together
-  const words = text.split(/\s+/);
-  let line = "";
-  
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? " " : "") + words[n];
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-    
-    if (testWidth > maxWidth && line) {
-      ctx.fillText(line.trim(), x, y);
-      line = words[n];
-      y += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  if (line) {
-    ctx.fillText(line.trim(), x, y);
-  }
-}
 
           const hindiX = 200;
           const hindiY = 705;
           const englishX = 200;
           const englishY = 1170;
 
-          function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-  // Don’t break Hindi graphemes — treat combined syllables as one unit
-  const words = text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g) || [];
-
-  let line = "";
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? "" : "") + words[n];
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-
-    if (testWidth > maxWidth && line) {
-      ctx.fillText(line.trim(), x, y);
-      line = words[n];
-      y += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-
-  if (line) {
-    ctx.fillText(line.trim(), x, y);
-  }
-}
 
 
 
           backCtx.font = '70pt "NotoSansHindi"';
-          drawWrappedTextBack(
-            backCtx,
-            addressHindi || "—",
-            hindiX,
-            hindiY,
-            1900,
-            120
-          );
+          wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
+
 
           backCtx.font = "62pt Arial";
-          drawWrappedTextBack(
-            backCtx,
-            addressEnglish || "—",
-            englishX,
-            englishY,
-            1950,
-            120
-          );
+          wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
+
 
           backCtx.save();
           backCtx.translate(145, 870);
@@ -811,34 +825,10 @@ app.post("/finalize-dob", async (req, res) => {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // Helper function for wrapping text
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
- // Don’t break Hindi graphemes — treat combined syllables as one unit
-  const words = text.match(/[\u0900-\u097F]+|[^\u0900-\u097F]+/g) || [];
 
-  let line = "";
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? "" : "") + words[n];
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-
-    if (testWidth > maxWidth && line) {
-      ctx.fillText(line.trim(), x, y);
-      line = words[n];
-      y += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-
-  if (line) {
-    ctx.fillText(line.trim(), x, y);
-  }
-}
 
     ctx.font = 'bold 60pt "NotoSansHindi"';
-drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
+    wrapTextForCanvas(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
 
     ctx.font = "bold 69pt Arial";
     ctx.fillText(englishName || "Name Not Found", 982, 677);
@@ -880,28 +870,6 @@ drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 55
     backCtx.imageSmoothingEnabled = true;
     backCtx.imageSmoothingQuality = "high";
 
-  function drawWrappedTextBack(ctx, text, x, y, maxWidth, lineHeight) {
-  // Split by spaces, preserve Hindi script integrity
-  const words = text.split(/\s+/);
-  let line = "";
-  
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + (line ? " " : "") + words[n];
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-    
-    if (testWidth > maxWidth && line) {
-      ctx.fillText(line.trim(), x, y);
-      line = words[n];
-      y += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  if (line) {
-    ctx.fillText(line.trim(), x, y);
-  }
-}
 
     const hindiX = 200,
       hindiY = 705;
@@ -909,24 +877,26 @@ drawWrappedText(ctx, hindiName || "नाम नहीं मिला", 982, 55
       englishY = 1170;
 
     backCtx.font = '70pt "NotoSansHindi"';
-    drawWrappedTextBack(
-      backCtx,
-      addressHindi || "—",
-      hindiX,
-      hindiY,
-      1900,
-      120
-    );
+  wrapTextForCanvas(
+  backCtx,
+  addressHindi || "—",
+  hindiX,
+  hindiY,
+  1900,
+  120,
+  { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 }
+);
 
-    backCtx.font = "62pt Arial";
-    drawWrappedTextBack(
-      backCtx,
-      addressEnglish || "—",
-      englishX,
-      englishY,
-      1950,
-      120
-    );
+
+ wrapTextForCanvas(
+  backCtx,
+  addressEnglish || "—",
+  englishX,
+  englishY,
+  1950,
+  120,
+  { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 }
+);
 
     backCtx.save();
     backCtx.translate(145, 870);
