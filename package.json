@@ -14,6 +14,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "gm": "^1.25.1",
+    "graphemer": "^1.4.0",
     "intl-segmenter-polyfill": "^0.4.4",
     "jimp": "^0.16.1",
     "multer": "^2.0.1",

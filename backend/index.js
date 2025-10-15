@@ -15,6 +15,9 @@ const pipelineAsync = promisify(pipeline);
 const gm = require("gm").subClass({ imageMagick: true });
 
 const PDFDocument = require("pdfkit"); // <-- NEW
+const Graphemer = require("graphemer").default;
+const splitter = new Graphemer();
+
 
 // ============================================
 // HINDI TEXT PROCESSING FIX - START
@@ -47,7 +50,6 @@ function cleanHindiTextPreserveStructure(rawText) {
 
   // ✅ NEW FIX: remove accidental spaces *inside* Hindi words
   // Example: "कु मार" → "कुमार", "राज पूत" → "राजपूत", "डिडौ ली" → "डिडौली"
-  cleaned = cleaned.replace(/([\u0900-\u097F])\s+([\u0900-\u097F])/g, "$1$2");
 
   // Remove leading/trailing commas
   cleaned = cleaned.replace(/^,+|,+$/g, "").trim();
@@ -116,22 +118,25 @@ function extractAddressSafely(lines, startIndex, language = "hindi") {
 }
 
 /**
- * Wrap and render text safely for Hindi + English mixed content.
- * It auto-breaks lines based on measured width and supports ellipsis + font shrinking.
+ * Wrap and render Hindi + English mixed text safely on Canvas.
+ * Uses grapheme-based segmentation (via Graphemer) to avoid breaking Hindi glyphs.
+ * 
+ * - Preserves natural spaces (does NOT merge them).
+ * - Wraps based on actual rendered width.
+ * - Supports ellipsis, auto font shrink, and max line count.
  */
 function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
   const { maxLines = Infinity, ellipses = true, autoShrink = false, minFontSize = 14 } = opts;
 
-  if (!text) {
+  if (!text || !text.trim()) {
     ctx.fillText("—", x, y);
     return;
   }
 
-  // Split into Hindi and non-Hindi tokens, preserving graphemes
-const tokens = Array.from(
-  text.matchAll(/[\u0900-\u097F]+(?:[\u093E-\u094F\u0902\u0903]*)*|[A-Za-z]+|[0-9]+|[,.:;/-]+|\s+/g),
-  m => m[0]
-).filter(t => t.trim().length > 0);
+  // --- Use Graphemer for safe grapheme segmentation (handles Hindi correctly)
+  const Graphemer = require("graphemer").default;
+  const splitter = new Graphemer();
+  const clusters = splitter.splitGraphemes(text.normalize("NFC")); // normalize for safety
 
   // ---- Auto shrink font if allowed ----
   if (autoShrink && isFinite(maxLines)) {
@@ -141,23 +146,24 @@ const tokens = Array.from(
       let size = parseFloat(fontMatch[1]);
       while (size >= minFontSize) {
         ctx.font = origFont.replace(/(\d+(?:\.\d+)?)pt/, `${size}pt`);
-        const linesTest = buildLines(ctx, tokens, maxWidth);
-        if (linesTest.length <= maxLines) break;
-        size -= 2; // shrink gradually
+        const testLines = buildLines(ctx, clusters, maxWidth);
+        if (testLines.length <= maxLines) break;
+        size -= 2;
       }
     }
   }
 
-  // ---- Build actual lines based on width ----
-  const lines = buildLines(ctx, tokens, maxWidth);
+  // ---- Build lines safely ----
+  const lines = buildLines(ctx, clusters, maxWidth);
 
   // ---- Handle overflow (too many lines) ----
   const finalLines =
     lines.length > maxLines
       ? lines.slice(0, maxLines).map((line, i, arr) => {
           if (i === arr.length - 1 && ellipses) {
-            while (ctx.measureText(line + "...").width > maxWidth && line.length > 0)
+            while (ctx.measureText(line + "...").width > maxWidth && line.length > 0) {
               line = line.slice(0, -1);
+            }
             return line.trim() + "...";
           }
           return line;
@@ -165,25 +171,30 @@ const tokens = Array.from(
       : lines;
 
   // ---- Draw lines ----
-  finalLines.forEach((ln, i) => ctx.fillText(ln, x, y + i * lineHeight));
+  finalLines.forEach((ln, i) => {
+    ctx.fillText(ln, x, y + i * lineHeight);
+  });
 
-  // Helper that builds lines respecting Hindi graphemes
-  function buildLines(ctxLocal, toks, widthLimit) {
+  // ===================================================
+  // Helper: builds lines using grapheme-based wrapping
+  // ===================================================
+  function buildLines(ctxLocal, clusters, widthLimit) {
     const out = [];
-    let line = "";
+    let currentLine = "";
 
-    for (const token of toks) {
-      const isPunct = /^[,.\-:;]+$/.test(token);
-      const testLine = line ? (isPunct ? line + token : line + " " + token) : token;
-      const w = ctxLocal.measureText(testLine).width;
-      if (w > widthLimit && line) {
-        out.push(line.trim());
-        line = token;
+    for (const cluster of clusters) {
+      const testLine = currentLine + cluster;
+      const width = ctxLocal.measureText(testLine).width;
+
+      if (width > widthLimit && currentLine.length > 0) {
+        out.push(currentLine.trim());
+        currentLine = cluster.trimStart();
       } else {
-        line = testLine;
+        currentLine = testLine;
       }
     }
-    if (line) out.push(line.trim());
+
+    if (currentLine) out.push(currentLine.trim());
     return out;
   }
 }

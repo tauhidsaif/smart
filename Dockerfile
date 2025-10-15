@@ -28,8 +28,9 @@ ENV LC_ALL=hi_IN.UTF-8
 
 # ✅ Copy package files and install dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
-RUN npm install pdfkit
+
+# Install all dependencies (including Graphemer)
+RUN npm ci --omit=dev && npm install pdfkit graphemer
 
 # ✅ Copy full source code
 COPY . .
@@ -37,5 +38,5 @@ COPY . .
 # ✅ Expose the port
 EXPOSE 5000
 
-# ✅ Start app using dynamic port binding (for Render)
+# ✅ Start app using dynamic port binding (for Render, etc.)
 CMD ["npm", "start"]
