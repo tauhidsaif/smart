@@ -522,8 +522,8 @@ const base = await loadImage(frontTemplatePath);
           ctx.imageSmoothingQuality = "high"; // Best quality
 
           // Final positions (from Photoshop)
-         ctx.font = 'bold 60pt "NotoSansHindi"';
-          wrapTextForCanvas(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 80);
+         ctx.font = 'bold 66pt "NotoSansHindi"';
+          wrapTextForCanvas(ctx, hindiName || "नाम नहीं मिला", 982, 553, 1400, 86);
 
           ctx.font = "bold 69pt Arial";
           ctx.fillText(englishName || "Name Not Found", 982, 677);
@@ -577,12 +577,14 @@ const base = await loadImage(frontTemplatePath);
 
 
 
-          backCtx.font = '70pt "NotoSansHindi"';
-          wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
+          backCtx.font = '76pt "NotoSansHindi"';
+wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, 1900, 128, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 });
 
 
-          backCtx.font = "62pt Arial";
-          wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 120, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
+
+        backCtx.font = "68pt Arial";
+wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, 1950, 128, { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 });
+
 
 
           backCtx.save();
