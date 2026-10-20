@@ -69,7 +69,7 @@ const templateCache = new Map();
 // decrease them to move it up.
 const HINDI_ADDRESS_CROP = {
   adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 },
-  child: { left: 0.526, right: 0.757, top: 0.7501, bottom: 0.800 },
+  child: { left: 0.526, right: 0.757, top: 0.7571, bottom: 0.800 },
 };
 
 function readPhotoSettings() {
