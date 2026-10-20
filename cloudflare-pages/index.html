@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1559b7">
+  <meta name="description" content="Generate front and back card images and a printable PDF directly in your browser. Files stay on your device.">
+  <title>Smart PDF Render — Free</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="preload" href="./assets/fonts/NotoSansDevanagari-Regular.ttf" as="font" type="font/ttf" crossorigin>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">S</div>
+      <div class="brand-copy">
+        <h1>Smart PDF Render</h1>
+        <p>Free browser edition</p>
+      </div>
+      <span class="free-tag">₹0 hosting</span>
+    </header>
+
+    <section class="privacy-note" aria-label="Privacy information">
+      <span class="privacy-icon" aria-hidden="true">🔒</span>
+      <div>
+        <strong>Your PDF stays on this device</strong>
+        <p>The browser processes the file locally. This site does not upload your PDF to a Smart server or save it to an account.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STEP 1</p>
+          <h2>Choose your e-Aadhaar PDF</h2>
+        </div>
+        <span class="step-number">01</span>
+      </div>
+
+      <div class="file-drop">
+        <label for="pdfFile" class="file-label">
+          <span class="file-icon" aria-hidden="true">↑</span>
+          <span class="file-label-title">Choose PDF from device</span>
+          <span class="file-label-subtitle">Password-protected PDF supported</span>
+        </label>
+        <input id="pdfFile" type="file" accept="application/pdf,.pdf">
+        <p id="fileName" class="file-name">No file selected</p>
+      </div>
+
+      <label class="field-label" for="pdfPassword">PDF password <span>(optional)</span></label>
+      <input id="pdfPassword" class="text-input" type="password" autocomplete="off" placeholder="Leave empty to try the filename as password">
+      <p class="field-help">For example, if the password is RAHU2004, the PDF filename may be RAHU2004.pdf.</p>
+
+      <div class="format-row">
+        <div>
+          <strong>Back-side address weight</strong>
+          <p>Choose whether the generated address is bold.</p>
+        </div>
+        <button id="boldToggle" class="toggle-button" type="button" aria-pressed="false">
+          <span class="bold-symbol" aria-hidden="true">B</span>
+          <span id="boldToggleText">Make address bold</span>
+        </button>
+      </div>
+
+      <div id="dobPanel" class="dob-panel" hidden>
+        <label class="field-label" for="fullDob">Complete date of birth</label>
+        <p class="field-help">This PDF contains only the year of birth. Enter the actual date shown in your records; the year must match the PDF.</p>
+        <input id="fullDob" class="text-input" type="date">
+      </div>
+
+      <button id="generateBtn" class="primary-button" type="button">
+        <span id="generateBtnText">Generate card</span>
+        <span id="spinner" class="spinner" hidden></span>
+      </button>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="results" class="panel results" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STEP 2</p>
+          <h2>Your generated card</h2>
+        </div>
+        <span class="step-number">02</span>
+      </div>
+
+      <p class="result-note">Preview images are generated locally in your browser. Check both sides before printing.</p>
+      <div class="preview-grid">
+        <article class="preview-card">
+          <h3>Front side</h3>
+          <img id="frontPreview" alt="Generated front side">
+          <a id="frontPng" class="download-link" download="smart-front.png">Download front PNG</a>
+        </article>
+        <article class="preview-card">
+          <h3>Back side</h3>
+          <img id="backPreview" alt="Generated back side">
+          <a id="backPng" class="download-link" download="smart-back.png">Download back PNG</a>
+        </article>
+      </div>
+      <button id="downloadPdfBtn" class="primary-button" type="button">Download A4 PDF</button>
+      <p class="field-help">The PDF places the two card sides side-by-side on an A4 page.</p>
+    </section>
+
+    <footer>
+      <p>Smart PDF Render · Browser edition</p>
+      <p>Use only with documents you are authorised to process. Review the generated output before printing or sharing.</p>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
