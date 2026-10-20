@@ -62,43 +62,81 @@
         </button>
       </div>
 
-      <section class="photo-settings" aria-labelledby="photoSettingsTitle">
-        <div class="photo-settings-heading">
-          <div>
-            <strong id="photoSettingsTitle">Photo quality and border</strong>
-            <p>Adjust brightness and contrast for printing. Changes apply after you generate again.</p>
-          </div>
-          <button id="resetPhotoSettings" class="small-button" type="button">Reset</button>
-        </div>
+      <button id="photoSettingsOpenBtn" class="settings-launch" type="button">
+        <span class="settings-launch-icon" aria-hidden="true">⚙</span>
+        <span class="settings-launch-copy">
+          <strong>Photo & print settings</strong>
+          <small>Open live preview and adjustments</small>
+        </span>
+        <span class="settings-launch-arrow" aria-hidden="true">↗</span>
+      </button>
 
-        <div class="setting-control">
-          <label for="photoBrightness">Brightness <output id="photoBrightnessValue" for="photoBrightness">112%</output></label>
-          <input id="photoBrightness" type="range" min="80" max="130" value="112" step="1">
-        </div>
-        <div class="setting-control">
-          <label for="photoContrast">Contrast <output id="photoContrastValue" for="photoContrast">104%</output></label>
-          <input id="photoContrast" type="range" min="80" max="140" value="104" step="1">
-        </div>
+      <dialog id="photoSettingsDialog" class="photo-settings-dialog" aria-labelledby="photoSettingsTitle">
+        <div class="photo-dialog-card">
+          <div class="photo-dialog-heading">
+            <div>
+              <p class="eyebrow">LIVE PHOTO EDITOR</p>
+              <h2 id="photoSettingsTitle">Photo & print settings</h2>
+              <p>Move the controls to preview changes. Select Save & apply to update the generated card.</p>
+            </div>
+            <button id="closePhotoSettings" class="icon-close-button" type="button" aria-label="Close settings">×</button>
+          </div>
 
-        <label class="border-setting">
-          <input id="photoBorder" type="checkbox" checked>
-          <span><strong>Add border around photo</strong><small>Draws a border around the outside of the photo area.</small></span>
-        </label>
-        <div class="border-options">
-          <div class="setting-control">
-            <label for="photoBorderWidth">Border thickness <output id="photoBorderWidthValue" for="photoBorderWidth">3 px</output></label>
-            <input id="photoBorderWidth" type="range" min="1" max="12" value="3" step="1">
+          <div class="photo-editor-grid">
+            <section class="photo-live-panel" aria-label="Live portrait preview">
+              <div class="photo-live-stage">
+                <img id="photoSettingsPreview" class="photo-live-image" alt="Live preview of the portrait from your PDF" hidden>
+                <div id="photoPreviewPlaceholder" class="photo-preview-placeholder">
+                  <span aria-hidden="true">▧</span>
+                  <strong>Portrait preview</strong>
+                  <small>Choose a PDF and open this panel to load the portrait.</small>
+                </div>
+              </div>
+              <div class="live-pill"><span aria-hidden="true">●</span> LIVE EFFECT</div>
+              <p class="photo-preview-help">This preview uses the portrait found in your PDF. The same brightness, contrast and border settings are applied to the final front image.</p>
+            </section>
+
+            <section class="photo-controls-panel" aria-label="Photo adjustments">
+              <div class="setting-control">
+                <label for="photoBrightness">Brightness <output id="photoBrightnessValue" for="photoBrightness">125%</output></label>
+                <input id="photoBrightness" type="range" min="50" max="220" value="125" step="1">
+                <div class="range-hints"><span>Darker</span><span>Brighter</span></div>
+              </div>
+              <div class="setting-control">
+                <label for="photoContrast">Contrast <output id="photoContrastValue" for="photoContrast">135%</output></label>
+                <input id="photoContrast" type="range" min="50" max="220" value="135" step="1">
+                <div class="range-hints"><span>Softer</span><span>Stronger</span></div>
+              </div>
+
+              <label class="border-setting">
+                <input id="photoBorder" type="checkbox" checked>
+                <span><strong>Add border around photo</strong><small>Draws the border outside the photo area.</small></span>
+              </label>
+              <div class="border-options">
+                <div class="setting-control">
+                  <label for="photoBorderWidth">Border thickness <output id="photoBorderWidthValue" for="photoBorderWidth">12 px</output></label>
+                  <input id="photoBorderWidth" type="range" min="2" max="32" value="12" step="1">
+                </div>
+                <div class="setting-control">
+                  <label for="photoBorderColor">Border colour</label>
+                  <select id="photoBorderColor" class="text-input">
+                    <option value="#111827">Black</option>
+                    <option value="#1559b7">Blue</option>
+                    <option value="#ffffff">White</option>
+                  </select>
+                </div>
+              </div>
+              <button id="resetPhotoSettings" class="reset-photo-button" type="button">Reset to recommended settings</button>
+            </section>
           </div>
-          <div class="setting-control">
-            <label for="photoBorderColor">Border colour</label>
-            <select id="photoBorderColor" class="text-input">
-              <option value="#111827">Black</option>
-              <option value="#1559b7">Blue</option>
-              <option value="#ffffff">White</option>
-            </select>
+
+          <div class="photo-dialog-actions">
+            <button id="cancelPhotoSettings" class="secondary-button" type="button">Cancel</button>
+            <button id="savePhotoSettings" class="primary-button" type="button">Save & apply</button>
           </div>
+          <p id="photoSettingsStatus" class="photo-settings-status" role="status" aria-live="polite"></p>
         </div>
-      </section>
+      </dialog>
 
       <div id="dobPanel" class="dob-panel" hidden>
         <label class="field-label" for="fullDob">Complete date of birth</label>
