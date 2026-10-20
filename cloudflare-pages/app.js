@@ -720,12 +720,12 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
     ctx.filter = "none";
     ctx.strokeStyle = photoSettings.borderColor;
     ctx.lineWidth = photoSettings.borderWidth;
-    const inset = ctx.lineWidth / 2;
+    const bleed = ctx.lineWidth / 2;
     ctx.strokeRect(
-      photoX + inset,
-      photoY + inset,
-      photoWidth - ctx.lineWidth,
-      photoHeight - ctx.lineWidth
+      photoX - bleed,
+      photoY - bleed,
+      photoWidth + ctx.lineWidth,
+      photoHeight + ctx.lineWidth
     );
     ctx.restore();
   }
