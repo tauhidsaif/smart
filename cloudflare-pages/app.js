@@ -62,6 +62,16 @@ const TEMPLATE_PATHS = {
 };
 const templateCache = new Map();
 
+// Where the Hindi address is cropped from the source PDF page, as fractions of
+// the page width (left/right) and page height (top/bottom).
+// Adult and child sheets are set separately so one can be tuned without
+// touching the other. Increase `top`/`bottom` to move the crop down the page,
+// decrease them to move it up.
+const HINDI_ADDRESS_CROP = {
+  adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 },
+  child: { left: 0.526, right: 0.757, top: 0.7705, bottom: 0.800 },
+};
+
 function readPhotoSettings() {
   return {
     brightness: Number(photoBrightness.value) / 100,
@@ -959,87 +969,9 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
     background: "rgb(255,255,255)",
   }).promise;
 
-  const region = { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 };
+  const region = isChildLayout ? HINDI_ADDRESS_CROP.child : HINDI_ADDRESS_CROP.adult;
   let sy = Math.round(region.top * source.height);
   let sh = Math.round((region.bottom - region.top) * source.height);
-
-  // Child PDFs can place the Hindi address outside the fixed adult crop, and the
-  // text items inside the address are not reliable for measuring its height.
-  // For child layouts only, bound the crop by the two labels ("पता:" above and
-  // "Address:" below), then trim it to the real ink. That way the first line is
-  // never cut and the English label never leaks in at the bottom.
-  // The adult crop is left exactly as before.
-  if (isChildLayout) {
-    const content = await page.getTextContent();
-    const items = (content.items || []).filter((item) =>
-      item && typeof item.str === "string" && item.str.trim() && item.transform
-    );
-    const backColumnX = pageView[0] + pageWidth * 0.48;
-    const textOf = (item) =>
-      item.str.normalize("NFC").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-    const sizeOf = (item) =>
-      Math.hypot(Number(item.transform[0]) || 0, Number(item.transform[1]) || 0) ||
-      Number(item.height) || 10;
-
-    const englishLabel =
-      items.find((item) => Number(item.transform[4]) >= backColumnX && /^Address\s*[:：]?$/i.test(textOf(item))) ||
-      items.find((item) => /^Address\s*[:：]?$/i.test(textOf(item)));
-    const hindiLabel =
-      items.find((item) => Number(item.transform[4]) >= backColumnX && /^पता\s*[:：]?$/u.test(textOf(item))) ||
-      items.find((item) => /पता\s*[:：]?/u.test(item.str.trim()));
-
-    if (hindiLabel && englishLabel) {
-      const hindiY = Number(hindiLabel.transform[5]);
-      const englishY = Number(englishLabel.transform[5]);
-
-      if (hindiY > englishY) {
-        // Hard limits: just under the Hindi label, just above the tops of the
-        // English label's letters.
-        const windowTopPdf = hindiY - sizeOf(hindiLabel) * 0.12;
-        const windowBottomPdf = englishY + sizeOf(englishLabel) * 0.9;
-        const topPoint = viewport.convertToViewportPoint(pageView[0], windowTopPdf);
-        const bottomPoint = viewport.convertToViewportPoint(pageView[0], windowBottomPdf);
-        const windowTop = Math.max(0, Math.ceil(Math.min(topPoint[1], bottomPoint[1])));
-        const windowBottom = Math.min(source.height, Math.floor(Math.max(topPoint[1], bottomPoint[1])));
-
-        if (windowBottom - windowTop > renderScale * 6) {
-          const scanX = Math.round(region.left * source.width);
-          const scanW = Math.round((region.right - region.left) * source.width);
-          const scanH = windowBottom - windowTop;
-          const scan = sourceContext.getImageData(scanX, windowTop, scanW, scanH).data;
-
-          // Find the first and last rows that actually contain text ink.
-          let firstInk = -1;
-          let lastInk = -1;
-          for (let row = 0; row < scanH; row += 1) {
-            let ink = 0;
-            const rowStart = row * scanW * 4;
-            for (let col = 0; col < scanW; col += 1) {
-              const index = rowStart + col * 4;
-              if ((scan[index] + scan[index + 1] + scan[index + 2]) / 3 < 140) {
-                ink += 1;
-                if (ink >= 3) break;
-              }
-            }
-            if (ink >= 3) {
-              if (firstInk < 0) firstInk = row;
-              lastInk = row;
-            }
-          }
-
-          if (firstInk >= 0) {
-            const padTop = Math.round(renderScale * 2);
-            const padBottom = Math.round(renderScale * 2);
-            sy = Math.max(windowTop, windowTop + firstInk - padTop);
-            sh = Math.min(windowBottom, windowTop + lastInk + 1 + padBottom) - sy;
-          } else {
-            sy = windowTop;
-            sh = scanH;
-          }
-        }
-      }
-    }
-  }
 
   const sx = Math.round(region.left * source.width);
   const sw = Math.round((region.right - region.left) * source.width);
