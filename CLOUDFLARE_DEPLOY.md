@@ -13,7 +13,7 @@ This configuration prepares a separate Cloudflare deployment. It does not change
 
 Cloudflare Containers require the Workers Paid plan. The Workers Paid plan starts at US$5/month, and container usage is billed separately. This configuration selects the 1 GiB basic container because PDF rendering and image processing may not fit reliably in the 256 MiB lite instance.
 
-Keeping the 1 GiB / 4 GB basic instance warm for a 30-day month is roughly US$11.93 in the listed memory and disk charges plus the US$5 Workers Paid base plan is already included in the calculation described by the pricing page; CPU, Workers/Durable Objects, egress, logs, and other usage can add more. Treat this as an indicative estimate, not a quote. A continuously warm container will not be free. Check current pricing before enabling billing:
+For 30 days with the 1 GiB / 4 GB basic instance continuously warm, a rough estimate is about US$11.93/month total, including the US$5 Workers Paid base plan and estimated extra memory/disk charges. CPU, Workers/Durable Objects, egress, logs, and other usage can add more, so treat this as an estimate rather than a quote. A continuously warm container will not be free. Check current pricing before enabling billing:
 https://developers.cloudflare.com/containers/platform/pricing/
 
 ## Safe setup
@@ -21,7 +21,7 @@ https://developers.cloudflare.com/containers/platform/pricing/
 1. Keep the Render service connected to the main branch; do not change its branch.
 2. In Cloudflare, enable Workers Paid if you accept the ongoing cost.
 3. Create a separate Worker project connected to tauhidsaif/smart.
-4. Set the production branch to safe-copy-2026-10-20, root directory to the repository root, and deploy command to npx wrangler deploy.
+4. Set the production branch to safe-copy-2026-10-20, root directory to the repository root, and deploy command to npx --yes wrangler@latest deploy.
 5. Keep the workers.dev route enabled. Cloudflare will assign a workers.dev URL; no custom domain is needed.
 6. Deploy, wait for the first container image to build and provision, then test PDF upload, card generation, both sides, and PDF download before sharing the new URL.
 
