@@ -326,3 +326,84 @@ body.dark button.small-button { border-color: #34445d; background: #172235; colo
   .photo-settings-heading { align-items: flex-start; }
   .border-options { grid-template-columns: 1fr; }
 }
+
+
+/* Compact settings button + responsive live photo editor */
+.settings-launch {
+  display:flex; align-items:center; gap:11px; width:100%; margin-top:18px;
+  padding:11px 13px; border:1px solid #cad8eb; border-radius:12px;
+  background:#f9fbff; color:var(--ink); text-align:left; box-shadow:none;
+}
+.settings-launch:hover { background:#eef5ff; box-shadow:0 3px 12px #1559b718; }
+.settings-launch-icon {
+  display:grid; place-items:center; width:36px; height:36px; flex:0 0 auto;
+  border-radius:10px; background:#e4eeff; color:var(--blue); font-size:21px;
+}
+.settings-launch-copy { display:flex; min-width:0; flex:1; flex-direction:column; gap:2px; }
+.settings-launch-copy strong { font-size:13px; }
+.settings-launch-copy small { color:var(--muted); font-size:11px; }
+.settings-launch-arrow { color:var(--blue); font-size:20px; }
+.photo-settings-dialog {
+  width:min(94vw,820px); max-width:820px; max-height:92dvh; padding:0; overflow:auto;
+  border:1px solid #d4dfed; border-radius:18px; background:#fff; color:var(--ink);
+  box-shadow:0 24px 80px #081a373d;
+}
+.photo-settings-dialog::backdrop { background:rgba(12,24,44,.68); backdrop-filter:blur(4px); }
+.photo-dialog-card { padding:clamp(15px,3vw,24px); }
+.photo-dialog-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; margin-bottom:17px; }
+.photo-dialog-heading h2 { margin:0; font-size:clamp(20px,3vw,25px); }
+.photo-dialog-heading p:not(.eyebrow) { margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
+.icon-close-button {
+  display:grid; place-items:center; width:37px; height:37px; flex:0 0 auto; padding:0;
+  border:1px solid var(--line); border-radius:10px; background:#fff; color:#334155;
+  box-shadow:none; font-size:25px;
+}
+.photo-editor-grid { display:grid; grid-template-columns:minmax(190px,.8fr) minmax(0,1.2fr); gap:18px; align-items:stretch; }
+.photo-live-panel {
+  display:flex; min-width:0; flex-direction:column; align-items:center; padding:14px;
+  border:1px solid var(--line); border-radius:14px; background:#f7f9fd;
+}
+.photo-live-stage {
+  display:grid; place-items:center; width:100%; min-height:280px; flex:1; padding:12px;
+  border:1px solid #e2e8f0; border-radius:10px; background-color:#fff;
+  background-image:linear-gradient(45deg,#f2f4f7 25%,transparent 25%),linear-gradient(-45deg,#f2f4f7 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f2f4f7 75%),linear-gradient(-45deg,transparent 75%,#f2f4f7 75%);
+  background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0;
+}
+.photo-live-image { display:block; max-width:min(100%,220px); max-height:370px; width:auto; height:auto; object-fit:contain; border:0; border-radius:1px; box-shadow:0 0 0 2px #111827; transition:filter .08s linear,box-shadow .08s linear; }
+.photo-preview-placeholder { display:flex; max-width:220px; flex-direction:column; align-items:center; gap:9px; padding:18px 8px; color:var(--muted); text-align:center; }
+.photo-preview-placeholder>span { color:#a8b8ce; font-size:42px; }
+.photo-preview-placeholder strong { color:#314158; font-size:13px; }
+.photo-preview-placeholder small { font-size:11px; line-height:1.5; }
+.live-pill { margin-top:12px; padding:5px 9px; border:1px solid #bee8d0; border-radius:999px; background:#eaf9f0; color:#087443; font-size:10px; font-weight:800; letter-spacing:.7px; }
+.live-pill span { color:#19a45b; font-size:9px; }
+.photo-preview-help { margin:10px 0 0; color:var(--muted); font-size:11px; line-height:1.5; }
+.photo-controls-panel { min-width:0; padding:15px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.photo-controls-panel .setting-control+.setting-control { margin-top:20px; }
+.photo-controls-panel .setting-control label { display:flex; align-items:center; justify-content:space-between; gap:9px; margin-bottom:8px; color:#293a53; font-size:12px; font-weight:750; }
+.photo-controls-panel .setting-control output { color:var(--blue); font-size:13px; font-variant-numeric:tabular-nums; }
+.photo-controls-panel input[type=range] { display:block; width:100%; margin:0; accent-color:var(--blue); }
+.range-hints { display:flex; justify-content:space-between; margin-top:3px; color:#8a96a7; font-size:10px; }
+.photo-controls-panel .border-setting { margin-top:20px; }
+.photo-controls-panel .border-options { margin-top:13px; }
+.photo-controls-panel .border-options .text-input { min-height:40px; padding:8px 10px; }
+.reset-photo-button { width:100%; margin-top:19px; padding:10px; border:1px solid #cbd6e5; border-radius:10px; background:#fff; color:var(--blue-dark); box-shadow:none; font-size:12px; font-weight:750; }
+.reset-photo-button:hover { background:#f2f7ff; box-shadow:none; }
+.photo-dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+.photo-dialog-actions .primary-button { width:auto; min-width:150px; margin-top:0; }
+.photo-dialog-actions .secondary-button { width:auto; min-width:100px; padding:12px 16px; border:1px solid #cbd6e5; border-radius:10px; background:#fff; color:var(--ink); box-shadow:none; font-size:13px; font-weight:700; }
+.photo-settings-status { margin:10px 0 0; color:var(--muted); font-size:11px; }
+body.dark .settings-launch { background:#151e2c; border-color:#34445d; color:#f1f5fb; }
+body.dark .photo-settings-dialog { background:#101826; color:#f1f5fb; border-color:#34445d; }
+body.dark .photo-dialog-heading p:not(.eyebrow) { color:#b1bdcd; }
+body.dark .photo-live-panel,body.dark .photo-controls-panel { background:#151e2c; border-color:#34445d; }
+body.dark .photo-controls-panel .setting-control label { color:#f1f5fb; }
+body.dark .photo-dialog-actions .secondary-button,body.dark .reset-photo-button,body.dark .icon-close-button { background:#172235; color:#f1f5fb; border-color:#34445d; }
+@media(max-width:620px) {
+  .photo-settings-dialog { width:96vw; max-height:94dvh; }
+  .photo-editor-grid { grid-template-columns:1fr; }
+  .photo-live-stage { min-height:220px; }
+  .photo-live-image { max-height:245px; }
+  .photo-controls-panel { padding:13px; }
+  .border-options { grid-template-columns:1fr; }
+  .photo-dialog-actions .primary-button { flex:1; min-width:0; }
+}
