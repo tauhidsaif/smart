@@ -78,8 +78,8 @@ generateBtn.addEventListener("click", async () => {
     if (!staged || staged.file !== file) {
       const pdf = await openPdfFromDevice(file);
       setStatus("Reading text and embedded images in your browser…", "info");
-      const lines = await extractLines(pdf);
-      const fields = extractFields(lines);
+      const textColumns = await extractLines(pdf);
+      const fields = extractFields(textColumns.left, textColumns.right);
       const images = await extractEmbeddedImages(pdf);
       const chosen = choosePhotoAndQr(images);
 
@@ -249,10 +249,19 @@ async function openPdfFromDevice(file) {
 }
 
 async function extractLines(pdf) {
-  const allLines = [];
+  const leftLines = [];
+  const rightLines = [];
+
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
+    const pageView = page.view || [0, 0, 612, 792];
+    const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
+    const columnSplitX = pageView[0] + pageWidth / 2;
+
+    // This card PDF has the front content on the left and the back content
+    // on the right. Parse each half separately, otherwise aligned rows from
+    // those two independent cards get merged together.
     const items = content.items
       .filter((item) => item && typeof item.str === "string" && item.str.trim())
       .map((item) => ({
@@ -260,72 +269,96 @@ async function extractLines(pdf) {
         x: item.transform ? item.transform[4] : 0,
         y: item.transform ? item.transform[5] : 0,
         width: Number(item.width) || 0,
-        size: item.transform ? Math.hypot(item.transform[0], item.transform[1]) : (Number(item.height) || 10),
-      }))
-      .sort((a, b) => b.y - a.y || a.x - b.x);
+        size: item.transform
+          ? Math.hypot(item.transform[0], item.transform[1])
+          : (Number(item.height) || 10),
+      }));
 
-    const rows = [];
-    for (const item of items) {
-      const tolerance = Math.max(1.5, Math.min(5, item.size * 0.35));
-      let row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
-      if (!row) {
-        row = { y: item.y, items: [] };
-        rows.push(row);
-      }
-      row.items.push(item);
-      row.y = row.items.reduce((sum, part) => sum + part.y, 0) / row.items.length;
-    }
+    for (const column of ["left", "right"]) {
+      const columnItems = items
+        .filter((item) => column === "left" ? item.x < columnSplitX : item.x >= columnSplitX)
+        .sort((a, b) => b.y - a.y || a.x - b.x);
 
-    rows.sort((a, b) => b.y - a.y);
-    for (const row of rows) {
-      row.items.sort((a, b) => a.x - b.x);
-      let text = "";
-      let previous = null;
-      for (const item of row.items) {
-        const value = item.str.trim();
-        if (!value) continue;
-        if (previous) {
-          const gap = item.x - (previous.x + previous.width);
-          const threshold = Math.max(0.8, Math.min(4, Math.max(previous.size, item.size) * 0.18));
-          const needsSpace = gap > threshold || /\s$/.test(previous.str) || /^\s/.test(item.str);
-          text += needsSpace && text && !text.endsWith(" ") ? " " : "";
+      const rows = [];
+      for (const item of columnItems) {
+        const tolerance = Math.max(1.5, Math.min(5, item.size * 0.35));
+        let row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
+        if (!row) {
+          row = { y: item.y, items: [] };
+          rows.push(row);
         }
-        text += value;
-        previous = item;
+        row.items.push(item);
+        row.y = row.items.reduce((sum, part) => sum + part.y, 0) / row.items.length;
       }
-      text = text.replace(/\s{2,}/g, " ").trim();
-      if (text) allLines.push(text);
+
+      rows.sort((a, b) => b.y - a.y);
+      const destination = column === "left" ? leftLines : rightLines;
+
+      for (const row of rows) {
+        row.items.sort((a, b) => a.x - b.x);
+        let line = "";
+        let previous = null;
+
+        for (const item of row.items) {
+          const value = item.str.trim();
+          if (!value) continue;
+
+          if (previous) {
+            const gap = item.x - (previous.x + previous.width);
+            const fontSize = Math.max(previous.size, item.size);
+            // Word gaps in the embedded Hindi text are small. Use a modest
+            // threshold instead of adding spaces for every visual glyph gap.
+            const threshold = Math.max(0.7, Math.min(3, fontSize * 0.12));
+            const hasExplicitSpace = /\s$/.test(previous.str) || /^\s/.test(item.str);
+            const needsSpace = hasExplicitSpace || gap > threshold;
+            if (needsSpace && line && !line.endsWith(" ")) line += " ";
+          }
+
+          line += value;
+          previous = item;
+        }
+
+        line = line.replace(/\s{2,}/g, " ").trim();
+        if (line) destination.push(line);
+      }
     }
   }
-  return allLines;
+
+  return { left: leftLines, right: rightLines };
 }
 
-function extractFields(lines) {
-  const text = lines.join("\n");
-  const toIndex = lines.findIndex((line) => /^to\s*:?$/i.test(line.trim()));
+function extractFields(leftLines, rightLines = []) {
+  // Front and back are separate visual columns in the source PDF.
+  // Use front text for name/DOB/gender/mobile, and back text for addresses.
+  const frontText = leftLines.join("\n");
+  const backText = rightLines.join("\n");
+  const allLines = [...leftLines, ...rightLines];
+  const allText = frontText + "\n" + backText;
+
+  const toIndex = leftLines.findIndex((line) => /^to\s*:?$/i.test(line.trim()));
   let hindiName = "";
   let englishName = "";
   if (toIndex >= 0) {
-    hindiName = lines[toIndex + 1] || "";
-    englishName = lines[toIndex + 2] || "";
+    hindiName = leftLines[toIndex + 1] || "";
+    englishName = leftLines[toIndex + 2] || "";
   }
   hindiName = cleanName(hindiName);
   englishName = cleanName(englishName);
 
-  const dobMatch = text.match(/DOB\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4}|(?:19|20)\d{2})/i);
+  const dobMatch = frontText.match(/DOB\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4}|(?:19|20)\d{2})/i);
   const yobMatch =
-    text.match(/Year\s*of\s*Birth\s*[:\-]?\s*((?:19|20)\d{2})/i) ||
-    text.match(/\bYOB\s*[:\-]?\s*((?:19|20)\d{2})/i) ||
-    text.match(/DOB\s*[:\-]?\s*((?:19|20)\d{2})(?!\/)/i) ||
-    text.match(/जन्म\s*वर्ष\s*[:\-]?\s*((?:19|20)\d{2})/u);
+    frontText.match(/Year\s*of\s*Birth\s*[:\-]?\s*((?:19|20)\d{2})/i) ||
+    frontText.match(/\bYOB\s*[:\-]?\s*((?:19|20)\d{2})/i) ||
+    frontText.match(/DOB\s*[:\-]?\s*((?:19|20)\d{2})(?!\/)/i) ||
+    frontText.match(/जन्म\s*वर्ष\s*[:\-]?\s*((?:19|20)\d{2})/u);
 
-  const genderMatch = text.match(/\b(FEMALE|MALE)\b|महिला|पुरुष/iu);
+  const genderMatch = frontText.match(/\b(FEMALE|MALE)\b|महिला|पुरुष/iu);
   let gender = genderMatch ? genderMatch[0].toUpperCase() : "";
   if (/FEMALE|महिला/u.test(gender)) gender = "महिला / FEMALE";
   else if (/MALE|पुरुष/u.test(gender)) gender = "पुरुष / MALE";
 
   let aadhaar = "";
-  for (const line of lines) {
+  for (const line of allLines) {
     if (/\bVID\b/i.test(line)) continue;
     const match = line.match(/\b(\d{4})[\s-]*(\d{4})[\s-]*(\d{4})\b/);
     if (match) {
@@ -335,7 +368,7 @@ function extractFields(lines) {
   }
 
   let vid = "";
-  const vidLine = lines.find((line) => /\bVID\b/i.test(line));
+  const vidLine = allLines.find((line) => /\bVID\b/i.test(line));
   if (vidLine) {
     const vidMatch = vidLine.match(/(?:\d[\s-]*){16,20}/);
     if (vidMatch) {
@@ -344,9 +377,9 @@ function extractFields(lines) {
     }
   }
 
-  const mobileMatch = text.match(/Mobile\s*[:\-]?\s*(\d{10})/i);
-  const issueDateMatch = text.match(/issued\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
-  const detailsDateMatch = text.match(/Details\s+as\s+on\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const mobileMatch = frontText.match(/Mobile\s*[:\-]?\s*(\d{10})/i);
+  const issueDateMatch = frontText.match(/issued\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const detailsDateMatch = backText.match(/Details\s+as\s+on\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
 
   return {
     hindiName,
@@ -359,8 +392,8 @@ function extractFields(lines) {
     vid,
     issueDate: issueDateMatch ? issueDateMatch[1] : "",
     detailsDate: detailsDateMatch ? detailsDateMatch[1] : "",
-    addressHindi: extractAddress(lines, /पता\s*[:：]?/u, "hindi"),
-    addressEnglish: extractAddress(lines, /Address\s*[:：]?/i, "english"),
+    addressHindi: extractAddress(rightLines, /पता\s*[:：]?/u, "hindi"),
+    addressEnglish: extractAddress(rightLines, /Address\s*[:：]?/i, "english"),
   };
 }
 
@@ -532,11 +565,35 @@ function objectToCanvas(source) {
 
 function choosePhotoAndQr(images) {
   const valid = images.filter((image) => image.width >= 90 && image.height >= 90);
+
+  // Aadhaar PDFs also embed a large, portrait-shaped information panel. The
+  // old "largest portrait wins" rule selected that panel as the user's photo.
+  // Real embedded portraits are much smaller; cap the candidate size to exclude
+  // full card panels while still supporting high-resolution portrait photos.
   const photoCandidates = valid
-    .filter((image) => image.aspect >= 0.48 && image.aspect <= 0.92 && image.width * image.height >= 9000)
-    .sort((a, b) => b.area - a.area);
+    .filter((image) =>
+      image.width <= 800 &&
+      image.height <= 1000 &&
+      image.aspect >= 0.48 &&
+      image.aspect <= 0.92 &&
+      image.area >= 9000
+    )
+    .sort((a, b) => {
+      const aspectPenaltyA = Math.abs(a.aspect - 0.8);
+      const aspectPenaltyB = Math.abs(b.aspect - 0.8);
+      if (Math.abs(aspectPenaltyA - aspectPenaltyB) > 0.08) {
+        return aspectPenaltyA - aspectPenaltyB;
+      }
+      return b.area - a.area;
+    });
+
   const qrCandidates = valid
-    .filter((image) => image.aspect >= 0.88 && image.aspect <= 1.12 && image.width >= 120 && image.height >= 120)
+    .filter((image) =>
+      image.aspect >= 0.88 &&
+      image.aspect <= 1.12 &&
+      image.width >= 120 &&
+      image.height >= 120
+    )
     .sort((a, b) => b.area - a.area);
 
   const photo = photoCandidates[0] || null;
