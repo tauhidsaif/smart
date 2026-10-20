@@ -87,34 +87,36 @@ function extractAddressSafely(lines, startIndex, language = "hindi") {
   if (startIndex === -1) return "";
 
   const addressLines = [];
-  const pinRegex = /[-–]\s*\d{6}$/;
+  const pinRegex = /[-–]\s*\d{6}\s*$/;
 
   for (let i = startIndex + 1; i < lines.length; i++) {
-    let line = lines[i].trim();
+    let line = String(lines[i] || "").trim();
     if (!line) continue;
 
-    // Clean line by language
     if (language === "hindi") {
       line = cleanHindiTextPreserveStructure(line);
     } else {
       line = line.replace(/\s+/g, " ").trim();
     }
 
-    // Remove leading/trailing commas and extra commas inside the line
-    line = line.replace(/,+/g, ",").replace(/^,+|,+$/g, "").trim();
+    // PDF line breaks are often visual wraps, not new address components.
+    // Preserve source punctuation instead of inserting a comma at every break.
+    line = line.replace(/,+/g, ",").replace(/^,+/g, "").trim();
     if (!line) continue;
 
     addressLines.push(line);
-
-    // stop if we reach a pin-like marker (common in Aadhaar)
-    if (pinRegex.test(lines[i])) break;
+    if (pinRegex.test(line)) break;
   }
 
-  // Filter out empty segments and join with single comma+space
-  const joined = addressLines.filter(Boolean).join(", ").replace(/,+/g, ",").replace(/,\s*,/g, ",").trim();
-
-  // Final cleanup: remove repeated commas and leading/trailing punctuation
-  return joined.replace(/\s{2,}/g, " ").replace(/^,+|,+$/g, "").trim();
+  return addressLines
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+([,.:;])/g, "$1")
+    .replace(/,(\S)/g, ", $1")
+    .replace(/,{2,}/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^,+|,+$/g, "")
+    .trim();
 }
 
 /**
@@ -124,95 +126,91 @@ function extractAddressSafely(lines, startIndex, language = "hindi") {
  * ✅ Uses Graphemer + regex word grouping for safe rendering.
  */
 function wrapTextForCanvas(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
-  const { maxLines = Infinity, ellipses = true, autoShrink = false, minFontSize = 14 } = opts;
+  const {
+    maxLines = Infinity,
+    ellipses = true,
+    autoShrink = false,
+    minFontSize = 14,
+  } = opts;
 
-  if (!text || !text.trim()) {
+  const cleaned = String(text || "")
+    .normalize("NFC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+
+  if (!cleaned) {
     ctx.fillText("—", x, y);
     return;
   }
 
-  const splitter = new (require("graphemer").default)();
-  text = text.normalize("NFC").replace(/[\u200B-\u200D\uFEFF]/g, "");
+  const words = cleaned.split(" ");
+  const originalFont = ctx.font;
+  const fontMatch = originalFont.match(/(\d+(?:\.\d+)?)pt/);
 
-  // Split into "words" — keeps Hindi, English, digits, punctuation & spaces grouped
-  const tokens = Array.from(
-    text.matchAll(
-      /[\u0900-\u097F]+(?:[\u093E-\u094F\u0902\u0903]*)*|[A-Za-z0-9]+|[,.:;!?()\-/]+|\s+/g
-    ),
-    (m) => m[0]
-  ).filter(Boolean);
-
-  // Optional font autoshrink
-  if (autoShrink && isFinite(maxLines)) {
-    const origFont = ctx.font;
-    const fontMatch = origFont.match(/(\d+(?:\.\d+)?)pt/);
-    if (fontMatch) {
-      let size = parseFloat(fontMatch[1]);
-      while (size >= minFontSize) {
-        ctx.font = origFont.replace(/(\d+(?:\.\d+)?)pt/, `${size}pt`);
-        const linesTest = buildLines(ctx, tokens, maxWidth);
-        if (linesTest.length <= maxLines) break;
-        size -= 2;
-      }
-    }
-  }
-
-  const lines = buildLines(ctx, tokens, maxWidth);
-
-  // Handle ellipsis
-  const finalLines =
-    lines.length > maxLines
-      ? lines.slice(0, maxLines).map((line, i, arr) => {
-          if (i === arr.length - 1 && ellipses) {
-            while (ctx.measureText(line + "...").width > maxWidth && line.length > 0) {
-              line = line.slice(0, -1);
-            }
-            return line.trim() + "...";
-          }
-          return line;
-        })
-      : lines;
-
-  // Draw
-  finalLines.forEach((ln, i) => ctx.fillText(ln, x, y + i * lineHeight));
-
-  // Core logic: break by word, not character
-  function buildLines(ctxLocal, words, limit) {
-    const out = [];
+  function buildLines(limit) {
+    const lines = [];
     let current = "";
 
     for (const word of words) {
-      const test = current + word;
-      const width = ctxLocal.measureText(test.trim()).width;
-
-      if (width > limit && current.trim().length > 0) {
-        out.push(current.trim());
-        // if even single word longer than line — break graphemes safely
-        if (ctxLocal.measureText(word.trim()).width > limit) {
-          const clusters = splitter.splitGraphemes(word.trim());
-          let chunk = "";
-          for (const c of clusters) {
-            const testChunk = chunk + c;
-            if (ctxLocal.measureText(testChunk).width > limit && chunk) {
-              out.push(chunk.trim());
-              chunk = c;
-            } else {
-              chunk = testChunk;
-            }
-          }
-          if (chunk) current = chunk + " ";
-          else current = "";
-        } else {
-          current = word.trimStart();
-        }
-      } else {
-        current = test;
+      const candidate = current ? current + " " + word : word;
+      if (ctx.measureText(candidate).width <= limit) {
+        current = candidate;
+        continue;
       }
+
+      if (current) {
+        lines.push(current);
+        current = "";
+      }
+
+      if (ctx.measureText(word).width <= limit) {
+        current = word;
+        continue;
+      }
+
+      // If one token is unusually long, split by grapheme so Hindi marks stay attached.
+      let chunk = "";
+      for (const grapheme of splitter.splitGraphemes(word)) {
+        const candidateChunk = chunk + grapheme;
+        if (ctx.measureText(candidateChunk).width > limit && chunk) {
+          lines.push(chunk);
+          chunk = grapheme;
+        } else {
+          chunk = candidateChunk;
+        }
+      }
+      current = chunk;
     }
 
-    if (current.trim()) out.push(current.trim());
-    return out;
+    if (current) lines.push(current);
+    return lines;
   }
+
+  if (autoShrink && Number.isFinite(maxLines) && fontMatch) {
+    let fontSize = Number(fontMatch[1]);
+    while (fontSize > minFontSize && buildLines(maxWidth).length > maxLines) {
+      fontSize = Math.max(minFontSize, fontSize - 2);
+      ctx.font = originalFont.replace(/(\d+(?:\.\d+)?)pt/, fontSize + "pt");
+    }
+  }
+
+  let finalLines = buildLines(maxWidth);
+  if (finalLines.length > maxLines) {
+    finalLines = finalLines.slice(0, maxLines);
+    if (ellipses && finalLines.length) {
+      let clusters = splitter.splitGraphemes(finalLines[finalLines.length - 1]);
+      const suffix = "…";
+      while (clusters.length && ctx.measureText(clusters.join("") + suffix).width > maxWidth) {
+        clusters.pop();
+      }
+      finalLines[finalLines.length - 1] = clusters.join("").trimEnd() + suffix;
+    }
+  }
+
+  finalLines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
+  });
 }
 
 
@@ -270,6 +268,7 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
   console.log("File:", req.file);
   console.log("Password:", req.body.password);
 
+  const addressBold = String(req.body.boldAddress).toLowerCase() === "true";
   const password = req.body.password;
   const originalPath = req.file.path;
   const baseName = path.basename(
@@ -393,6 +392,7 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
             },
             createdAt: Date.now(),
             yob,
+            addressBold,
           };
 
           // run pdfimages now so the photo-007 / photo-010 files get created in userDir
@@ -636,8 +636,8 @@ const qrLeft = qrX; // left edge of QR in canvas coordinates
 const paddingRight = 20; // keep small gap between address and QR
 
 // Hindi address max width: stop before QR
-const hindiMaxWidth = Math.max(300, qrLeft - paddingRight - hindiX); // fallback minimum width
-backCtx.font = '75pt "NotoSansHindi"';
+const hindiMaxWidth = Math.max(300, qrLeft - paddingRight - hindiX);
+backCtx.font = (addressBold ? "bold " : "") + '75pt "NotoSansHindi"';
 wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, hindiMaxWidth, 120, {
   maxLines: 6,
   ellipses: true,
@@ -645,9 +645,9 @@ wrapTextForCanvas(backCtx, addressHindi || "—", hindiX, hindiY, hindiMaxWidth,
   minFontSize: 30,
 });
 
-// English address max width: stop before QR
+// Keep both address blocks clear of the QR code.
 const englishMaxWidth = Math.max(300, qrLeft - paddingRight - englishX);
-backCtx.font = "62pt Arial";
+backCtx.font = (addressBold ? "bold " : "") + "62pt Arial";
 wrapTextForCanvas(backCtx, addressEnglish || "—", englishX, englishY, englishMaxWidth, 120, {
   maxLines: 6,
   ellipses: true,
@@ -836,6 +836,10 @@ app.post("/finalize-dob", async (req, res) => {
     }
 
     const pending = JSON.parse(fs.readFileSync(pendingPath, "utf8"));
+    const addressBold =
+      req.body.boldAddress !== undefined
+        ? String(req.body.boldAddress).toLowerCase() === "true"
+        : Boolean(pending.addressBold);
     const expectedYear = pending.yob;
     const enteredYear = yearOf(dobFull);
     if (!expectedYear || !enteredYear || expectedYear !== enteredYear) {
@@ -971,27 +975,28 @@ if (photoPath && fs.existsSync(photoPath)) {
     const englishX = 200,
       englishY = 1170;
 
-    backCtx.font = '70pt "NotoSansHindi"';
-  wrapTextForCanvas(
-  backCtx,
-  addressHindi || "—",
-  hindiX,
-  hindiY,
-  1900,
-  120,
-  { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 }
-);
+    const addressMaxWidth = Math.max(300, 2103 - 20 - hindiX);
+    backCtx.font = (addressBold ? "bold " : "") + '75pt "NotoSansHindi"';
+    wrapTextForCanvas(
+      backCtx,
+      addressHindi || "—",
+      hindiX,
+      hindiY,
+      addressMaxWidth,
+      120,
+      { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 30 }
+    );
 
-
- wrapTextForCanvas(
-  backCtx,
-  addressEnglish || "—",
-  englishX,
-  englishY,
-  1950,
-  120,
-  { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 }
-);
+    backCtx.font = (addressBold ? "bold " : "") + "62pt Arial";
+    wrapTextForCanvas(
+      backCtx,
+      addressEnglish || "—",
+      englishX,
+      englishY,
+      addressMaxWidth,
+      120,
+      { maxLines: 6, ellipses: true, autoShrink: true, minFontSize: 26 }
+    );
 
     backCtx.save();
     backCtx.translate(145, 870);

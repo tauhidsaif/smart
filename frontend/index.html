@@ -84,6 +84,23 @@
           class="error-msg"
           style="display: none; color: red; margin-top: 5px"
         ></p>
+
+        <div class="address-format-control">
+          <div class="address-format-copy">
+            <strong>Back-side address text</strong>
+            <small>Choose normal or bold text before generating.</small>
+          </div>
+          <button
+            type="button"
+            id="addressBoldToggle"
+            class="format-toggle"
+            aria-pressed="false"
+          >
+            <span class="format-b-icon" aria-hidden="true">B</span>
+            <span id="addressBoldToggleText">Make address bold</span>
+          </button>
+        </div>
+
         <button type="submit" id="submitBtn">
           <span id="btnText">Generate Aadhaar Card</span>
           <span id="spinner" class="spinner hidden"></span>

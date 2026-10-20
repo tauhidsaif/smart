@@ -7,6 +7,9 @@ const submitBtn = document.getElementById("submitBtn");
 const cardFlipper = document.getElementById("cardFlipper");
 const toast = document.getElementById("toast");
 const darkToggle = document.getElementById("darkToggle");
+const addressBoldToggle = document.getElementById("addressBoldToggle");
+const addressBoldToggleText = document.getElementById("addressBoldToggleText");
+let isBackAddressBold = false;
 
 // --- DOB modal elements ---
 const dobModal = document.getElementById("dobModal");
@@ -148,6 +151,25 @@ darkToggle.addEventListener("change", () => {
   localStorage.setItem("theme", darkToggle.checked ? "dark" : "light");
 });
 
+// Back-side address formatting: apply this choice during the next generation.
+if (addressBoldToggle) {
+  addressBoldToggle.addEventListener("click", () => {
+    isBackAddressBold = !isBackAddressBold;
+    addressBoldToggle.setAttribute("aria-pressed", String(isBackAddressBold));
+    addressBoldToggle.classList.toggle("is-active", isBackAddressBold);
+    if (addressBoldToggleText) {
+      addressBoldToggleText.textContent = isBackAddressBold
+        ? "Make address normal"
+        : "Make address bold";
+    }
+    showToast(
+      isBackAddressBold
+        ? "Bold address selected. Generate the card again to apply it."
+        : "Normal address selected. Generate the card again to apply it."
+    );
+  });
+}
+
 // FLIP CARD
 cardFlipper.addEventListener("click", () => {
   cardFlipper.classList.toggle("flipped");
@@ -239,6 +261,7 @@ form.addEventListener("submit", async (e) => {
   const formData = new FormData();
   formData.append("aadhaar", file);
   formData.append("password", password);
+  formData.append("boldAddress", String(isBackAddressBold));
 
   submitBtn.disabled = true;
   spinner.classList.remove("hidden");
@@ -291,6 +314,7 @@ form.addEventListener("submit", async (e) => {
             body: JSON.stringify({
               baseName: uploadedBaseName, // same as server folder name
               dobFull: `${dd}/${mm}/${yyyy}`, // dd/mm/yyyy
+              boldAddress: isBackAddressBold,
             }),
           });
 
