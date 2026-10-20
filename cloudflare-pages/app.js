@@ -959,7 +959,7 @@ async function extractHindiAddressRaster(pdf, fields) {
     background: "rgb(255,255,255)",
   }).promise;
 
-  const region = { left: 0.526, right: 0.757, top: 0.770, bottom: 0.803 };
+  const region = { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 };
   const sx = Math.round(region.left * source.width);
   const sy = Math.round(region.top * source.height);
   const sw = Math.round((region.right - region.left) * source.width);
