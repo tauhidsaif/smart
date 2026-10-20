@@ -300,7 +300,7 @@ async function prepareStagedPdf(file) {
   setStatus("Reading the PDF locally…", "info");
   const textColumns = await extractLines(pdf);
   const fields = extractFields(textColumns.left, textColumns.right);
-  const hindiAddressRaster = await extractHindiAddressRaster(pdf, fields);
+  const hindiAddressRaster = await extractHindiAddressRaster(pdf, fields, determineChild(fields.dob));
   const images = await extractEmbeddedImages(pdf);
   const chosen = choosePhotoAndQr(images);
 
@@ -922,7 +922,7 @@ async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindi
 }
 
 
-async function extractHindiAddressRaster(pdf, fields) {
+async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
   // This path targets the standard one-page, letter-size e-Aadhaar sheet.
   // Unrecognized PDFs continue through the text-based fallback.
   if (
@@ -960,10 +960,66 @@ async function extractHindiAddressRaster(pdf, fields) {
   }).promise;
 
   const region = { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 };
+  let sy = Math.round(region.top * source.height);
+  let sh = Math.round((region.bottom - region.top) * source.height);
+
+  // Child PDFs can place the Hindi address a little outside the adult crop.
+  // Keep the adult crop exactly as before; for child layouts, derive only the
+  // vertical crop bounds from the PDF text between "पता:" and "Address:".
+  if (isChildLayout) {
+    const content = await page.getTextContent();
+    const items = (content.items || []).filter((item) =>
+      item && typeof item.str === "string" && item.str.trim() && item.transform
+    );
+    const hindiLabel = items.find((item) => /पता\s*[:：]?/u.test(item.str.trim()));
+    const englishLabel = items.find((item) => /^Address\s*[:：]?$/i.test(item.str.trim()));
+
+    if (hindiLabel && englishLabel) {
+      const hindiLabelY = Number(hindiLabel.transform[5]);
+      const englishLabelY = Number(englishLabel.transform[5]);
+      const addressItems = items.filter((item) => {
+        const text = item.str.trim();
+        const x = Number(item.transform[4]);
+        const y = Number(item.transform[5]);
+        return /[\u0900-\u097F]/u.test(text) &&
+          x >= pageView[0] + pageWidth * 0.48 &&
+          x <= pageView[0] + pageWidth * 0.9 &&
+          y < hindiLabelY && y > englishLabelY;
+      });
+
+      if (addressItems.length) {
+        let topPdf = -Infinity;
+        let bottomPdf = Infinity;
+        for (const item of addressItems) {
+          const y = Number(item.transform[5]);
+          const height = Math.max(
+            Number(item.height) || 0,
+            Math.hypot(Number(item.transform[0]) || 0, Number(item.transform[1]) || 0)
+          );
+          topPdf = Math.max(topPdf, y + height);
+          bottomPdf = Math.min(bottomPdf, y);
+        }
+        if (Number.isFinite(topPdf) && Number.isFinite(bottomPdf) && topPdf > bottomPdf) {
+          const margin = 2.5;
+          const topPoint = viewport.convertToViewportPoint(pageView[0], topPdf + margin);
+          const bottomPoint = viewport.convertToViewportPoint(pageView[0], bottomPdf - margin);
+          const topY = Math.min(topPoint[1], bottomPoint[1]);
+          const bottomY = Math.max(topPoint[1], bottomPoint[1]);
+          sy = Math.max(0, Math.floor(topY));
+          sh = Math.min(source.height - sy, Math.ceil(bottomY) - sy);
+        }
+      }
+    }
+  }
+
   const sx = Math.round(region.left * source.width);
-  const sy = Math.round(region.top * source.height);
   const sw = Math.round((region.right - region.left) * source.width);
-  const sh = Math.round((region.bottom - region.top) * source.height);
+  if (sh <= 0 || sy + sh > source.height) {
+    source.width = 0;
+    source.height = 0;
+    return null;
+  }
+
   const crop = document.createElement("canvas");
   crop.width = sw;
   crop.height = sh;
@@ -972,7 +1028,8 @@ async function extractHindiAddressRaster(pdf, fields) {
 
   // If these coordinates land on a different layout or blank paper, do not
   // stamp an incorrect crop over the template.
-  const pixels = cropContext.getImageData(0, 0, sw, sh).data;
+  const imageData = cropContext.getImageData(0, 0, sw, sh);
+  const pixels = imageData.data;
   let darkPixels = 0;
   for (let i = 0; i < pixels.length; i += 4) {
     if (pixels[i] < 120 && pixels[i + 1] < 120 && pixels[i + 2] < 120) {
@@ -980,9 +1037,30 @@ async function extractHindiAddressRaster(pdf, fields) {
       if (darkPixels > 350) break;
     }
   }
+
+  if (darkPixels <= 350) {
+    source.width = 0;
+    source.height = 0;
+    return null;
+  }
+
+  // The adult template uses a white background. The child template is pale
+  // blue, so remove the scanned white paper from the child crop while keeping
+  // anti-aliased black glyph edges transparent and smooth.
+  if (isChildLayout) {
+    for (let i = 0; i < pixels.length; i += 4) {
+      const luminance = Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+      pixels[i] = 0;
+      pixels[i + 1] = 0;
+      pixels[i + 2] = 0;
+      pixels[i + 3] = 255 - luminance;
+    }
+    cropContext.putImageData(imageData, 0, 0);
+  }
+
   source.width = 0;
   source.height = 0;
-  return darkPixels > 350 ? crop : null;
+  return crop;
 }
 
 function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, options) {
