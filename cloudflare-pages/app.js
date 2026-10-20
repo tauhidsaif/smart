@@ -1000,13 +1000,36 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
           bottomPdf = Math.min(bottomPdf, y);
         }
         if (Number.isFinite(topPdf) && Number.isFinite(bottomPdf) && topPdf > bottomPdf) {
-          const margin = 2.5;
-          const topPoint = viewport.convertToViewportPoint(pageView[0], topPdf + margin);
-          const bottomPoint = viewport.convertToViewportPoint(pageView[0], bottomPdf - margin);
-          const topY = Math.min(topPoint[1], bottomPoint[1]);
-          const bottomY = Math.max(topPoint[1], bottomPoint[1]);
-          sy = Math.max(0, Math.floor(topY));
-          sh = Math.min(source.height - sy, Math.ceil(bottomY) - sy);
+         const margin = 2.5;
+
+const topPoint = viewport.convertToViewportPoint(
+  pageView[0],
+  topPdf + margin
+);
+
+const bottomPoint = viewport.convertToViewportPoint(
+  pageView[0],
+  bottomPdf - margin
+);
+
+const topY = Math.min(topPoint[1], bottomPoint[1]);
+const bottomY = Math.max(topPoint[1], bottomPoint[1]);
+
+// Extra padding for the upper marks of Hindi characters.
+const extraTopPadding = Math.round(renderScale * 4);
+const extraBottomPadding = Math.round(renderScale * 2);
+
+sy = Math.max(
+  0,
+  Math.floor(topY) - extraTopPadding
+);
+
+const cropBottom = Math.min(
+  source.height,
+  Math.ceil(bottomY) + extraBottomPadding
+);
+
+sh = cropBottom - sy;
         }
       }
     }
