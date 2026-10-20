@@ -963,69 +963,79 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
   let sy = Math.round(region.top * source.height);
   let sh = Math.round((region.bottom - region.top) * source.height);
 
-  // Derive the vertical crop bounds from the actual Hindi text between the
-  // "पता:" and "Address:" labels (for both adult and child layouts), so the
-  // crop is never cut off. The fixed region above is only a fallback.
-  {
+  // Child PDFs can place the Hindi address outside the fixed adult crop, and the
+  // text items inside the address are not reliable for measuring its height.
+  // For child layouts only, bound the crop by the two labels ("पता:" above and
+  // "Address:" below), then trim it to the real ink. That way the first line is
+  // never cut and the English label never leaks in at the bottom.
+  // The adult crop is left exactly as before.
+  if (isChildLayout) {
     const content = await page.getTextContent();
     const items = (content.items || []).filter((item) =>
       item && typeof item.str === "string" && item.str.trim() && item.transform
     );
-    const hindiLabel = items.find((item) => /पता\s*[:：]?/u.test(item.str.trim()));
-    const englishLabel = items.find((item) => /^Address\s*[:：]?$/i.test(item.str.trim()));
+    const backColumnX = pageView[0] + pageWidth * 0.48;
+    const textOf = (item) =>
+      item.str.normalize("NFC").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+    const sizeOf = (item) =>
+      Math.hypot(Number(item.transform[0]) || 0, Number(item.transform[1]) || 0) ||
+      Number(item.height) || 10;
+
+    const englishLabel =
+      items.find((item) => Number(item.transform[4]) >= backColumnX && /^Address\s*[:：]?$/i.test(textOf(item))) ||
+      items.find((item) => /^Address\s*[:：]?$/i.test(textOf(item)));
+    const hindiLabel =
+      items.find((item) => Number(item.transform[4]) >= backColumnX && /^पता\s*[:：]?$/u.test(textOf(item))) ||
+      items.find((item) => /पता\s*[:：]?/u.test(item.str.trim()));
 
     if (hindiLabel && englishLabel) {
-      const hindiLabelY = Number(hindiLabel.transform[5]);
-      const englishLabelY = Number(englishLabel.transform[5]);
-      const addressItems = items.filter((item) => {
-        const text = item.str.trim();
-        const x = Number(item.transform[4]);
-        const y = Number(item.transform[5]);
-        return /[\u0900-\u097F]/u.test(text) &&
-          x >= pageView[0] + pageWidth * 0.48 &&
-          x <= pageView[0] + pageWidth * 0.9 &&
-          y < hindiLabelY && y > englishLabelY;
-      });
+      const hindiY = Number(hindiLabel.transform[5]);
+      const englishY = Number(englishLabel.transform[5]);
 
-      if (addressItems.length) {
-        let topPdf = -Infinity;
-        let bottomPdf = Infinity;
-        for (const item of addressItems) {
-          const y = Number(item.transform[5]);
-          const fontSize = Math.max(
-            Number(item.height) || 0,
-            Math.hypot(Number(item.transform[0]) || 0, Number(item.transform[1]) || 0)
-          );
-          // Devanagari has tall shirorekha/matras above and descenders below
-          // the baseline, so extend the bounds by a share of the font size.
-          topPdf = Math.max(topPdf, y + fontSize * 1.15);
-          bottomPdf = Math.min(bottomPdf, y - fontSize * 0.35);
-        }
-        if (Number.isFinite(topPdf) && Number.isFinite(bottomPdf) && topPdf > bottomPdf) {
-          const margin = 3;
+      if (hindiY > englishY) {
+        // Hard limits: just under the Hindi label, just above the tops of the
+        // English label's letters.
+        const windowTopPdf = hindiY - sizeOf(hindiLabel) * 0.12;
+        const windowBottomPdf = englishY + sizeOf(englishLabel) * 0.9;
+        const topPoint = viewport.convertToViewportPoint(pageView[0], windowTopPdf);
+        const bottomPoint = viewport.convertToViewportPoint(pageView[0], windowBottomPdf);
+        const windowTop = Math.max(0, Math.ceil(Math.min(topPoint[1], bottomPoint[1])));
+        const windowBottom = Math.min(source.height, Math.floor(Math.max(topPoint[1], bottomPoint[1])));
 
-          const topPoint = viewport.convertToViewportPoint(
-            pageView[0],
-            topPdf + margin
-          );
-          const bottomPoint = viewport.convertToViewportPoint(
-            pageView[0],
-            bottomPdf - margin
-          );
+        if (windowBottom - windowTop > renderScale * 6) {
+          const scanX = Math.round(region.left * source.width);
+          const scanW = Math.round((region.right - region.left) * source.width);
+          const scanH = windowBottom - windowTop;
+          const scan = sourceContext.getImageData(scanX, windowTop, scanW, scanH).data;
 
-          const topY = Math.min(topPoint[1], bottomPoint[1]);
-          const bottomY = Math.max(topPoint[1], bottomPoint[1]);
+          // Find the first and last rows that actually contain text ink.
+          let firstInk = -1;
+          let lastInk = -1;
+          for (let row = 0; row < scanH; row += 1) {
+            let ink = 0;
+            const rowStart = row * scanW * 4;
+            for (let col = 0; col < scanW; col += 1) {
+              const index = rowStart + col * 4;
+              if ((scan[index] + scan[index + 1] + scan[index + 2]) / 3 < 140) {
+                ink += 1;
+                if (ink >= 3) break;
+              }
+            }
+            if (ink >= 3) {
+              if (firstInk < 0) firstInk = row;
+              lastInk = row;
+            }
+          }
 
-          // Extra padding for the upper marks and lower matras of Hindi characters.
-          const extraTopPadding = Math.round(renderScale * 6);
-          const extraBottomPadding = Math.round(renderScale * 4);
-
-          sy = Math.max(0, Math.floor(topY) - extraTopPadding);
-          const cropBottom = Math.min(
-            source.height,
-            Math.ceil(bottomY) + extraBottomPadding
-          );
-          sh = cropBottom - sy;
+          if (firstInk >= 0) {
+            const padTop = Math.round(renderScale * 2);
+            const padBottom = Math.round(renderScale * 2);
+            sy = Math.max(windowTop, windowTop + firstInk - padTop);
+            sh = Math.min(windowBottom, windowTop + lastInk + 1 + padBottom) - sy;
+          } else {
+            sy = windowTop;
+            sh = scanH;
+          }
         }
       }
     }
@@ -1067,12 +1077,32 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
   // blue, so remove the scanned white paper from the child crop while keeping
   // anti-aliased black glyph edges transparent and smooth.
   if (isChildLayout) {
+    // The child sheet's panel is not pure white, so a plain "255 - luminance"
+    // alpha leaves a faint grey rectangle over the template. Measure the actual
+    // paper tone and make only the ink opaque.
+    const histogram = new Uint32Array(256);
     for (let i = 0; i < pixels.length; i += 4) {
-      const luminance = Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+      histogram[Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3)] += 1;
+    }
+    let background = 255;
+    let bestCount = -1;
+    for (let value = 255; value >= 128; value -= 1) {
+      if (histogram[value] > bestCount) {
+        bestCount = histogram[value];
+        background = value;
+      }
+    }
+
+    const noiseFloor = background - 3;
+    const inkRange = Math.max(1, background - 25);
+    for (let i = 0; i < pixels.length; i += 4) {
+      const luminance = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
       pixels[i] = 0;
       pixels[i + 1] = 0;
       pixels[i + 2] = 0;
-      pixels[i + 3] = 255 - luminance;
+      pixels[i + 3] = luminance >= noiseFloor
+        ? 0
+        : Math.min(255, Math.round(((background - luminance) / inkRange) * 255));
     }
     cropContext.putImageData(imageData, 0, 0);
   }
