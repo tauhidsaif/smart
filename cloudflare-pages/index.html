@@ -62,6 +62,44 @@
         </button>
       </div>
 
+      <section class="photo-settings" aria-labelledby="photoSettingsTitle">
+        <div class="photo-settings-heading">
+          <div>
+            <strong id="photoSettingsTitle">Photo quality and border</strong>
+            <p>Adjust brightness and contrast for printing. Changes apply after you generate again.</p>
+          </div>
+          <button id="resetPhotoSettings" class="small-button" type="button">Reset</button>
+        </div>
+
+        <div class="setting-control">
+          <label for="photoBrightness">Brightness <output id="photoBrightnessValue" for="photoBrightness">112%</output></label>
+          <input id="photoBrightness" type="range" min="80" max="130" value="112" step="1">
+        </div>
+        <div class="setting-control">
+          <label for="photoContrast">Contrast <output id="photoContrastValue" for="photoContrast">104%</output></label>
+          <input id="photoContrast" type="range" min="80" max="140" value="104" step="1">
+        </div>
+
+        <label class="border-setting">
+          <input id="photoBorder" type="checkbox" checked>
+          <span><strong>Add border around photo</strong><small>Draws a border around the outside of the photo area.</small></span>
+        </label>
+        <div class="border-options">
+          <div class="setting-control">
+            <label for="photoBorderWidth">Border thickness <output id="photoBorderWidthValue" for="photoBorderWidth">3 px</output></label>
+            <input id="photoBorderWidth" type="range" min="1" max="12" value="3" step="1">
+          </div>
+          <div class="setting-control">
+            <label for="photoBorderColor">Border colour</label>
+            <select id="photoBorderColor" class="text-input">
+              <option value="#111827">Black</option>
+              <option value="#1559b7">Blue</option>
+              <option value="#ffffff">White</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <div id="dobPanel" class="dob-panel" hidden>
         <label class="field-label" for="fullDob">Complete date of birth</label>
         <p class="field-help">This PDF contains only the year of birth. Enter the actual date shown in your records; the year must match the PDF.</p>
