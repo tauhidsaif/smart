@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "smart-pdf-render-cf",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-10-20",
+  "observability": {
+    "enabled": true
+  },
+  "containers": [
+    {
+      "class_name": "SmartPdfContainer",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./Dockerfile"
+        }
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SMART_PDF_CONTAINER",
+        "class_name": "SmartPdfContainer"
+      }
+    ]
+  },
+  "exports": {
+    "SmartPdfContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
