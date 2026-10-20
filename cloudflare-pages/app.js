@@ -1016,7 +1016,7 @@ const topY = Math.min(topPoint[1], bottomPoint[1]);
 const bottomY = Math.max(topPoint[1], bottomPoint[1]);
 
 // Extra padding for the upper marks of Hindi characters.
-const extraTopPadding = Math.round(renderScale * 4);
+const extraTopPadding = Math.round(renderScale * 8);
 const extraBottomPadding = Math.round(renderScale * 2);
 
 sy = Math.max(
