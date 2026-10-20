@@ -89,12 +89,23 @@ generateBtn.addEventListener("click", async () => {
         );
       }
 
+      // The chooser returns metadata records; drawImage needs the actual
+      // HTMLCanvasElement stored in each record's .canvas property.
+      if (
+        !(chosen.photo.canvas instanceof HTMLCanvasElement) ||
+        !(chosen.qr.canvas instanceof HTMLCanvasElement)
+      ) {
+        throw new Error(
+          "The embedded photo or QR code could not be converted into a browser canvas."
+        );
+      }
+
       staged = {
         file,
         pdf,
         fields,
-        photo: chosen.photo,
-        qr: chosen.qr,
+        photo: chosen.photo.canvas,
+        qr: chosen.qr.canvas,
         imageCount: images.length,
       };
     }
