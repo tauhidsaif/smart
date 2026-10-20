@@ -963,10 +963,10 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
   let sy = Math.round(region.top * source.height);
   let sh = Math.round((region.bottom - region.top) * source.height);
 
-  // Child PDFs can place the Hindi address a little outside the adult crop.
-  // Keep the adult crop exactly as before; for child layouts, derive only the
-  // vertical crop bounds from the PDF text between "पता:" and "Address:".
-  if (isChildLayout) {
+  // Derive the vertical crop bounds from the actual Hindi text between the
+  // "पता:" and "Address:" labels (for both adult and child layouts), so the
+  // crop is never cut off. The fixed region above is only a fallback.
+  {
     const content = await page.getTextContent();
     const items = (content.items || []).filter((item) =>
       item && typeof item.str === "string" && item.str.trim() && item.transform
@@ -992,44 +992,40 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
         let bottomPdf = Infinity;
         for (const item of addressItems) {
           const y = Number(item.transform[5]);
-          const height = Math.max(
+          const fontSize = Math.max(
             Number(item.height) || 0,
             Math.hypot(Number(item.transform[0]) || 0, Number(item.transform[1]) || 0)
           );
-          topPdf = Math.max(topPdf, y + height);
-          bottomPdf = Math.min(bottomPdf, y);
+          // Devanagari has tall shirorekha/matras above and descenders below
+          // the baseline, so extend the bounds by a share of the font size.
+          topPdf = Math.max(topPdf, y + fontSize * 1.15);
+          bottomPdf = Math.min(bottomPdf, y - fontSize * 0.35);
         }
         if (Number.isFinite(topPdf) && Number.isFinite(bottomPdf) && topPdf > bottomPdf) {
-         const margin = 2.5;
+          const margin = 3;
 
-const topPoint = viewport.convertToViewportPoint(
-  pageView[0],
-  topPdf + margin
-);
+          const topPoint = viewport.convertToViewportPoint(
+            pageView[0],
+            topPdf + margin
+          );
+          const bottomPoint = viewport.convertToViewportPoint(
+            pageView[0],
+            bottomPdf - margin
+          );
 
-const bottomPoint = viewport.convertToViewportPoint(
-  pageView[0],
-  bottomPdf - margin
-);
+          const topY = Math.min(topPoint[1], bottomPoint[1]);
+          const bottomY = Math.max(topPoint[1], bottomPoint[1]);
 
-const topY = Math.min(topPoint[1], bottomPoint[1]);
-const bottomY = Math.max(topPoint[1], bottomPoint[1]);
+          // Extra padding for the upper marks and lower matras of Hindi characters.
+          const extraTopPadding = Math.round(renderScale * 6);
+          const extraBottomPadding = Math.round(renderScale * 4);
 
-// Extra padding for the upper marks of Hindi characters.
-const extraTopPadding = Math.round(renderScale * 8);
-const extraBottomPadding = Math.round(renderScale * 2);
-
-sy = Math.max(
-  0,
-  Math.floor(topY) - extraTopPadding
-);
-
-const cropBottom = Math.min(
-  source.height,
-  Math.ceil(bottomY) + extraBottomPadding
-);
-
-sh = cropBottom - sy;
+          sy = Math.max(0, Math.floor(topY) - extraTopPadding);
+          const cropBottom = Math.min(
+            source.height,
+            Math.ceil(bottomY) + extraBottomPadding
+          );
+          sh = cropBottom - sy;
         }
       }
     }
