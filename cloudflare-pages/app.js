@@ -14,6 +14,14 @@ const spinner = $("spinner");
 const statusBox = $("status");
 const boldToggle = $("boldToggle");
 const boldToggleText = $("boldToggleText");
+const photoSettingsOpenBtn = $("photoSettingsOpenBtn");
+const photoSettingsDialog = $("photoSettingsDialog");
+const closePhotoSettings = $("closePhotoSettings");
+const cancelPhotoSettings = $("cancelPhotoSettings");
+const savePhotoSettings = $("savePhotoSettings");
+const photoSettingsPreview = $("photoSettingsPreview");
+const photoPreviewPlaceholder = $("photoPreviewPlaceholder");
+const photoSettingsStatus = $("photoSettingsStatus");
 const photoBrightness = $("photoBrightness");
 const photoBrightnessValue = $("photoBrightnessValue");
 const photoContrast = $("photoContrast");
@@ -37,6 +45,14 @@ let staged = null;
 let generated = null;
 let isBusy = false;
 let hindiFontReady = false;
+let photoSettingsSnapshot = null;
+let savedPhotoSettings = {
+  brightness: 1.25,
+  contrast: 1.35,
+  borderEnabled: true,
+  borderWidth: 12,
+  borderColor: "#111827",
+};
 
 const TEMPLATE_PATHS = {
   adultFront: "./assets/templates/adult-front.png",
@@ -56,6 +72,16 @@ function readPhotoSettings() {
   };
 }
 
+function writePhotoSettings(settings) {
+  photoBrightness.value = String(Math.round(settings.brightness * 100));
+  photoContrast.value = String(Math.round(settings.contrast * 100));
+  photoBorder.checked = Boolean(settings.borderEnabled);
+  photoBorderWidth.value = String(settings.borderWidth || 12);
+  photoBorderColor.value = settings.borderColor || "#111827";
+  updatePhotoSettingLabels();
+  updatePhotoLivePreview();
+}
+
 function updatePhotoSettingLabels() {
   photoBrightnessValue.value = photoBrightness.value + "%";
   photoBrightnessValue.textContent = photoBrightness.value + "%";
@@ -65,24 +91,109 @@ function updatePhotoSettingLabels() {
   photoBorderWidthValue.textContent = photoBorderWidth.value + " px";
 }
 
+function updatePhotoLivePreview() {
+  if (!photoSettingsPreview) return;
+  const settings = readPhotoSettings();
+  photoSettingsPreview.style.filter =
+    "brightness(" + settings.brightness + ") contrast(" + settings.contrast + ")";
+  photoSettingsPreview.style.boxShadow = settings.borderEnabled && settings.borderWidth > 0
+    ? "0 0 0 " + Math.max(1, settings.borderWidth * 0.24) + "px " + settings.borderColor
+    : "none";
+}
+
 [photoBrightness, photoContrast, photoBorder, photoBorderWidth, photoBorderColor].forEach((control) => {
   control.addEventListener("input", () => {
     updatePhotoSettingLabels();
-    if (generated) setStatus("Photo settings changed. Select Generate card to apply them.", "info");
+    updatePhotoLivePreview();
   });
 });
 
 resetPhotoSettings.addEventListener("click", () => {
-  photoBrightness.value = "112";
-  photoContrast.value = "104";
-  photoBorder.checked = true;
-  photoBorderWidth.value = "3";
-  photoBorderColor.value = "#111827";
-  updatePhotoSettingLabels();
-  if (generated) setStatus("Recommended photo settings restored. Select Generate card to apply them.", "info");
+  writePhotoSettings({
+    brightness: 1.25,
+    contrast: 1.35,
+    borderEnabled: true,
+    borderWidth: 12,
+    borderColor: "#111827",
+  });
+  photoSettingsStatus.textContent = "Recommended settings restored. Select Save & apply to keep them.";
 });
 
-updatePhotoSettingLabels();
+photoSettingsOpenBtn.addEventListener("click", async () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) {
+    setStatus("Choose your PDF first, then open Photo & print settings.", "error");
+    return;
+  }
+
+  photoSettingsOpenBtn.disabled = true;
+  photoSettingsStatus.textContent = "Reading the portrait from your PDF locally…";
+  try {
+    await prepareStagedPdf(file);
+    photoSettingsSnapshot = { ...savedPhotoSettings };
+    writePhotoSettings(savedPhotoSettings);
+    photoSettingsPreview.src = staged.photo.toDataURL("image/png");
+    photoSettingsPreview.hidden = false;
+    photoPreviewPlaceholder.hidden = true;
+    photoSettingsStatus.textContent = "Live preview is ready. Unsaved changes will be discarded if you cancel.";
+    if (!photoSettingsDialog.open) photoSettingsDialog.showModal();
+    updatePhotoLivePreview();
+  } catch (error) {
+    console.error("Could not open photo editor:", error);
+    setStatus(error instanceof Error ? error.message : "Could not load the photo preview.", "error");
+    photoSettingsStatus.textContent = "Could not load the portrait. Check the PDF password and try again.";
+  } finally {
+    photoSettingsOpenBtn.disabled = false;
+  }
+});
+
+function discardPhotoSettings() {
+  if (photoSettingsSnapshot) writePhotoSettings(photoSettingsSnapshot);
+  if (photoSettingsDialog.open) photoSettingsDialog.close();
+}
+
+closePhotoSettings.addEventListener("click", discardPhotoSettings);
+cancelPhotoSettings.addEventListener("click", discardPhotoSettings);
+photoSettingsDialog.addEventListener("cancel", () => {
+  if (photoSettingsSnapshot) writePhotoSettings(photoSettingsSnapshot);
+});
+
+savePhotoSettings.addEventListener("click", async () => {
+  savedPhotoSettings = { ...readPhotoSettings() };
+  photoSettingsSnapshot = { ...savedPhotoSettings };
+  photoSettingsDialog.close();
+
+  if (!generated || !staged) {
+    setStatus("Photo settings saved. Generate the card to apply them.", "info");
+    return;
+  }
+
+  savePhotoSettings.disabled = true;
+  savePhotoSettings.textContent = "Applying…";
+  try {
+    setStatus("Applying photo settings to the card…", "info");
+    const isChild = determineChild(generated.fields.dob);
+    const frontCanvas = await renderFront(generated.fields, staged.photo, isChild, savedPhotoSettings);
+    const backCanvas = await renderBack(
+      generated.fields,
+      staged.qr,
+      isChild,
+      addressBold,
+      staged.hindiAddressRaster
+    );
+    generated = { ...generated, frontCanvas, backCanvas, isChild };
+    updateGeneratedPreviews();
+    setStatus("Photo settings applied. Download the updated card image or PDF.", "success");
+  } catch (error) {
+    console.error("Could not apply photo settings:", error);
+    setStatus(error instanceof Error ? error.message : "Could not apply photo settings.", "error");
+  } finally {
+    savePhotoSettings.disabled = false;
+    savePhotoSettings.textContent = "Save & apply";
+  }
+});
+
+writePhotoSettings(savedPhotoSettings);
 
 fileInput.addEventListener("change", () => {
   staged = null;
@@ -92,6 +203,10 @@ fileInput.addEventListener("change", () => {
   fullDobInput.value = "";
   passwordInput.value = "";
   passwordInput.placeholder = "Leave empty to try the filename as password";
+  photoSettingsPreview.removeAttribute("src");
+  photoSettingsPreview.hidden = true;
+  photoPreviewPlaceholder.hidden = false;
+  if (photoSettingsDialog.open) photoSettingsDialog.close();
   clearStatus();
 
   const file = fileInput.files && fileInput.files[0];
@@ -118,51 +233,18 @@ generateBtn.addEventListener("click", async () => {
   isBusy = true;
   generateBtn.disabled = true;
   spinner.hidden = false;
-  generateBtnText.textContent = staged ? "Generating images…" : "Reading PDF locally…";
+  generateBtnText.textContent = staged && staged.file === file ? "Generating images…" : "Reading PDF locally…";
   clearStatus();
 
   try {
-    if (!staged || staged.file !== file) {
-      const pdf = await openPdfFromDevice(file);
-      setStatus("Reading text and embedded images in your browser…", "info");
-      const textColumns = await extractLines(pdf);
-      const fields = extractFields(textColumns.left, textColumns.right);
-      const images = await extractEmbeddedImages(pdf);
-      const chosen = choosePhotoAndQr(images);
-
-      if (!chosen.photo || !chosen.qr) {
-        throw new Error(
-          "This PDF's embedded photo or QR code could not be identified safely. No card was generated. This PDF layout needs a compatibility update; do not use an incorrectly generated card."
-        );
-      }
-
-      // The chooser returns metadata records; drawImage needs the actual
-      // HTMLCanvasElement stored in each record's .canvas property.
-      if (
-        !(chosen.photo.canvas instanceof HTMLCanvasElement) ||
-        !(chosen.qr.canvas instanceof HTMLCanvasElement)
-      ) {
-        throw new Error(
-          "The embedded photo or QR code could not be converted into a browser canvas."
-        );
-      }
-
-      staged = {
-        file,
-        pdf,
-        fields,
-        photo: chosen.photo.canvas,
-        qr: chosen.qr.canvas,
-        imageCount: images.length,
-      };
-    }
-
+    await prepareStagedPdf(file);
     const fields = { ...staged.fields };
+
     if (fields.yob && !fields.dob) {
       const chosenDob = fullDobInput.value;
       if (!chosenDob) {
         dobPanel.hidden = false;
-        setStatus("This PDF has a year of birth but no full date. Enter the complete date of birth, then select Generate card again.", "info");
+        setStatus("This PDF has only a year of birth. Enter the actual full date of birth, then generate again.", "info");
         return;
       }
       const parts = chosenDob.split("-");
@@ -180,19 +262,25 @@ generateBtn.addEventListener("click", async () => {
     setStatus("Drawing card templates and preparing downloads…", "info");
     await loadHindiFont();
     const isChild = determineChild(fields.dob);
-    const frontCanvas = await renderFront(fields, staged.photo, isChild, readPhotoSettings());
-    const backCanvas = await renderBack(fields, staged.qr, isChild);
+    const frontCanvas = await renderFront(fields, staged.photo, isChild, savedPhotoSettings);
+    const backCanvas = await renderBack(
+      fields,
+      staged.qr,
+      isChild,
+      addressBold,
+      staged.hindiAddressRaster
+    );
 
-    generated = { frontCanvas, backCanvas, fields };
-    frontPreview.src = frontCanvas.toDataURL("image/png");
-    backPreview.src = backCanvas.toDataURL("image/png");
-    frontPng.href = frontPreview.src;
-    backPng.href = backPreview.src;
-    frontPng.download = safeName(file.name) + "-front.png";
-    backPng.download = safeName(file.name) + "-back.png";
+    generated = { frontCanvas, backCanvas, fields, isChild };
+    updateGeneratedPreviews();
     results.hidden = false;
     dobPanel.hidden = true;
-    setStatus("Card generated locally. Review both sides before downloading or printing.", "success");
+    setStatus(
+      staged.hindiAddressRaster
+        ? "Card generated. The Hindi address is rendered from the source PDF to preserve its original glyphs."
+        : "Card generated locally. Review the Hindi address carefully before printing.",
+      staged.hindiAddressRaster ? "success" : "info"
+    );
     results.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     console.error("Smart PDF browser processing failed:", error);
@@ -204,6 +292,48 @@ generateBtn.addEventListener("click", async () => {
     generateBtnText.textContent = "Generate card";
   }
 });
+
+async function prepareStagedPdf(file) {
+  if (staged && staged.file === file) return staged;
+
+  const pdf = await openPdfFromDevice(file);
+  setStatus("Reading the PDF locally…", "info");
+  const textColumns = await extractLines(pdf);
+  const fields = extractFields(textColumns.left, textColumns.right);
+  const hindiAddressRaster = await extractHindiAddressRaster(pdf, fields);
+  const images = await extractEmbeddedImages(pdf);
+  const chosen = choosePhotoAndQr(images);
+
+  if (!chosen.photo || !chosen.qr) {
+    throw new Error("The PDF's portrait or QR image could not be identified safely. No card was generated.");
+  }
+  if (!(chosen.photo.canvas instanceof HTMLCanvasElement) || !(chosen.qr.canvas instanceof HTMLCanvasElement)) {
+    throw new Error("The embedded portrait or QR code could not be converted into a browser canvas.");
+  }
+
+  staged = {
+    file,
+    pdf,
+    fields,
+    photo: chosen.photo.canvas,
+    qr: chosen.qr.canvas,
+    hindiAddressRaster,
+    imageCount: images.length,
+  };
+  return staged;
+}
+
+function updateGeneratedPreviews() {
+  if (!generated) return;
+  frontPreview.src = generated.frontCanvas.toDataURL("image/png");
+  backPreview.src = generated.backCanvas.toDataURL("image/png");
+  frontPng.href = frontPreview.src;
+  backPng.href = backPreview.src;
+  const file = fileInput.files && fileInput.files[0];
+  const baseName = safeName(file ? file.name : "smart");
+  frontPng.download = baseName + "-front.png";
+  backPng.download = baseName + "-back.png";
+}
 
 downloadPdfBtn.addEventListener("click", async () => {
   if (!generated) {
@@ -733,7 +863,7 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
   return canvas;
 }
 
-async function renderBack(fields, qrImage, isChild) {
+async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindiAddressRaster = null) {
   const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.adultBack);
   const canvas = document.createElement("canvas");
   canvas.width = template.naturalWidth;
@@ -751,13 +881,30 @@ async function renderBack(fields, qrImage, isChild) {
   const paddingRight = 20;
   const hindiX = 200;
   const englishX = 200;
-  const maxWidth = Math.max(300, qrX - paddingRight - hindiX);
+  const hindiMaxWidth = Math.max(300, qrX - paddingRight - hindiX);
 
-  ctx.font = (addressBold ? "bold " : "") + '75pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-  wrapCanvasText(ctx, fields.addressHindi || "—", hindiX, 705, maxWidth, 120, { maxLines: 6, autoShrink: true, minSize: 30 });
+  if (hindiAddressRaster) {
+    // Render the Devanagari address from the PDF itself. This bypasses guessed
+    // character spacing entirely, preserving ligatures and rare vowel signs.
+    const drawWidth = hindiMaxWidth;
+    const drawHeight = drawWidth * (hindiAddressRaster.height / hindiAddressRaster.width);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(hindiAddressRaster, hindiX, 620, drawWidth, drawHeight);
+    ctx.restore();
+  } else {
+    ctx.font = (addressIsBold ? "bold " : "") + '75pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
+    wrapCanvasText(ctx, fields.addressHindi || "—", hindiX, 705, hindiMaxWidth, 120, {
+      maxLines: 6, autoShrink: true, minSize: 30
+    });
+  }
 
-  ctx.font = (addressBold ? "bold " : "") + "62pt Arial";
-  wrapCanvasText(ctx, fields.addressEnglish || "—", englishX, 1170, maxWidth, 120, { maxLines: 6, autoShrink: true, minSize: 26 });
+  const englishMaxWidth = Math.max(300, qrX - paddingRight - englishX);
+  ctx.font = (addressIsBold ? "bold " : "") + "62pt Arial";
+  wrapCanvasText(ctx, fields.addressEnglish || "—", englishX, 1170, englishMaxWidth, 120, {
+    maxLines: 6, autoShrink: true, minSize: 26
+  });
 
   ctx.save();
   ctx.translate(145, 870);
@@ -770,8 +917,72 @@ async function renderBack(fields, qrImage, isChild) {
   ctx.fillText(fields.aadhaar || "—", 947, 1600);
   ctx.font = "60pt Arial";
   ctx.fillText(fields.vid || "—", 1245, 1688);
-  ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
+  if (qrImage) ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
   return canvas;
+}
+
+
+async function extractHindiAddressRaster(pdf, fields) {
+  // This path targets the standard one-page, letter-size e-Aadhaar sheet.
+  // Unrecognized PDFs continue through the text-based fallback.
+  if (
+    pdf.numPages !== 1 ||
+    !fields.dob ||
+    !fields.aadhaar ||
+    !fields.addressEnglish ||
+    !fields.detailsDate
+  ) {
+    return null;
+  }
+
+  const page = await pdf.getPage(1);
+  const pageView = page.view || [0, 0, 612, 792];
+  const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
+  const pageHeight = Math.abs(pageView[3] - pageView[1]) || 792;
+  const aspect = pageWidth / pageHeight;
+  if (aspect < 0.72 || aspect > 0.81) return null;
+
+  // In this standard print sheet the Hindi address is in the lower-right
+  // card, between the Hindi "पता:" label and the English "Address:" label.
+  // PDF.js rasterizes the embedded glyphs with correct Devanagari shaping.
+  const renderScale = 5.5;
+  const viewport = page.getViewport({ scale: renderScale });
+  const source = document.createElement("canvas");
+  source.width = Math.ceil(viewport.width);
+  source.height = Math.ceil(viewport.height);
+  const sourceContext = source.getContext("2d", { willReadFrequently: true });
+  sourceContext.fillStyle = "#fff";
+  sourceContext.fillRect(0, 0, source.width, source.height);
+  await page.render({
+    canvasContext: sourceContext,
+    viewport,
+    background: "rgb(255,255,255)",
+  }).promise;
+
+  const region = { left: 0.526, right: 0.757, top: 0.770, bottom: 0.803 };
+  const sx = Math.round(region.left * source.width);
+  const sy = Math.round(region.top * source.height);
+  const sw = Math.round((region.right - region.left) * source.width);
+  const sh = Math.round((region.bottom - region.top) * source.height);
+  const crop = document.createElement("canvas");
+  crop.width = sw;
+  crop.height = sh;
+  const cropContext = crop.getContext("2d", { willReadFrequently: true });
+  cropContext.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  // If these coordinates land on a different layout or blank paper, do not
+  // stamp an incorrect crop over the template.
+  const pixels = cropContext.getImageData(0, 0, sw, sh).data;
+  let darkPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] < 120 && pixels[i + 1] < 120 && pixels[i + 2] < 120) {
+      darkPixels += 1;
+      if (darkPixels > 350) break;
+    }
+  }
+  source.width = 0;
+  source.height = 0;
+  return darkPixels > 350 ? crop : null;
 }
 
 function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, options) {
