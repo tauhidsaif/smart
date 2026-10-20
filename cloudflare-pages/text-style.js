@@ -88,10 +88,10 @@
       }
       return;
     }
-    if (processed[side] === original) return;
+    if (processed[side]) return;
 
     const dataUrl = thickenText(img, side);
-    processed[side] = original;
+    processed[side] = dataUrl;
     img.src = dataUrl;
     setDownload(link, dataUrl);
   }
@@ -111,9 +111,11 @@
   function rememberNewSource(img, side) {
     if (!img.src) return;
     if (processed[side] && img.src === processed[side]) return;
-    originals[side] = img.src;
-    processed[side] = "";
-    if (bold) refresh();
+    if (img.src !== originals[side]) {
+      originals[side] = img.src;
+      processed[side] = "";
+      if (bold) refresh();
+    }
   }
 
   const observer = new MutationObserver(() => {
