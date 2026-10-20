@@ -266,7 +266,7 @@ function yearOf(s) {
 app.post("/upload", upload.single("aadhaar"), async (req, res) => {
   console.log("UPLOAD RECEIVED");
   console.log("File:", req.file);
-  console.log("Password:", req.body.password);
+  // Never write user-provided PDF passwords to logs.
 
   const addressBold = String(req.body.boldAddress).toLowerCase() === "true";
   const password = req.body.password;
@@ -1092,6 +1092,12 @@ if (photoPath && fs.existsSync(photoPath)) {
 });
 
 const frontendPath = path.join(__dirname, "..", "frontend");
+
+// Lightweight internal health check used by the Cloudflare container warm-up.
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, service: "smart-pdf-render" });
+});
+
 app.use(express.static(frontendPath));
 
 app.get("/", (req, res) => {
