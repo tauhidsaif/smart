@@ -14,6 +14,15 @@ const spinner = $("spinner");
 const statusBox = $("status");
 const boldToggle = $("boldToggle");
 const boldToggleText = $("boldToggleText");
+const photoBrightness = $("photoBrightness");
+const photoBrightnessValue = $("photoBrightnessValue");
+const photoContrast = $("photoContrast");
+const photoContrastValue = $("photoContrastValue");
+const photoBorder = $("photoBorder");
+const photoBorderWidth = $("photoBorderWidth");
+const photoBorderWidthValue = $("photoBorderWidthValue");
+const photoBorderColor = $("photoBorderColor");
+const resetPhotoSettings = $("resetPhotoSettings");
 const dobPanel = $("dobPanel");
 const fullDobInput = $("fullDob");
 const results = $("results");
@@ -36,6 +45,44 @@ const TEMPLATE_PATHS = {
   childBack: "./assets/templates/child-back.png",
 };
 const templateCache = new Map();
+
+function readPhotoSettings() {
+  return {
+    brightness: Number(photoBrightness.value) / 100,
+    contrast: Number(photoContrast.value) / 100,
+    borderEnabled: photoBorder.checked,
+    borderWidth: photoBorder.checked ? Number(photoBorderWidth.value) : 0,
+    borderColor: photoBorderColor.value,
+  };
+}
+
+function updatePhotoSettingLabels() {
+  photoBrightnessValue.value = photoBrightness.value + "%";
+  photoBrightnessValue.textContent = photoBrightness.value + "%";
+  photoContrastValue.value = photoContrast.value + "%";
+  photoContrastValue.textContent = photoContrast.value + "%";
+  photoBorderWidthValue.value = photoBorderWidth.value + " px";
+  photoBorderWidthValue.textContent = photoBorderWidth.value + " px";
+}
+
+[photoBrightness, photoContrast, photoBorder, photoBorderWidth, photoBorderColor].forEach((control) => {
+  control.addEventListener("input", () => {
+    updatePhotoSettingLabels();
+    if (generated) setStatus("Photo settings changed. Select Generate card to apply them.", "info");
+  });
+});
+
+resetPhotoSettings.addEventListener("click", () => {
+  photoBrightness.value = "112";
+  photoContrast.value = "104";
+  photoBorder.checked = true;
+  photoBorderWidth.value = "3";
+  photoBorderColor.value = "#111827";
+  updatePhotoSettingLabels();
+  if (generated) setStatus("Recommended photo settings restored. Select Generate card to apply them.", "info");
+});
+
+updatePhotoSettingLabels();
 
 fileInput.addEventListener("change", () => {
   staged = null;
@@ -133,7 +180,7 @@ generateBtn.addEventListener("click", async () => {
     setStatus("Drawing card templates and preparing downloads…", "info");
     await loadHindiFont();
     const isChild = determineChild(fields.dob);
-    const frontCanvas = await renderFront(fields, staged.photo, isChild);
+    const frontCanvas = await renderFront(fields, staged.photo, isChild, readPhotoSettings());
     const backCanvas = await renderBack(fields, staged.qr, isChild);
 
     generated = { frontCanvas, backCanvas, fields };
@@ -272,6 +319,7 @@ async function extractLines(pdf) {
         size: item.transform
           ? Math.hypot(item.transform[0], item.transform[1])
           : (Number(item.height) || 10),
+        hasEOL: Boolean(item.hasEOL),
       }));
 
     for (const column of ["left", "right"]) {
@@ -308,7 +356,7 @@ async function extractLines(pdf) {
             const fontSize = Math.max(previous.size, item.size);
             // Word gaps in the embedded Hindi text are small. Use a modest
             // threshold instead of adding spaces for every visual glyph gap.
-            const threshold = Math.max(0.7, Math.min(3, fontSize * 0.12));
+            const threshold = Math.max(1.2, Math.min(4.5, fontSize * 0.22));
             const hasExplicitSpace = /\s$/.test(previous.str) || /^\s/.test(item.str);
             const needsSpace = hasExplicitSpace || gap > threshold;
             if (needsSpace && line && !line.endsWith(" ")) line += " ";
@@ -318,7 +366,7 @@ async function extractLines(pdf) {
           previous = item;
         }
 
-        line = line.replace(/\s{2,}/g, " ").trim();
+        line = line.normalize("NFC").replace(/\s{2,}/g, " ").trim();
         if (line) destination.push(line);
       }
     }
@@ -621,7 +669,7 @@ function loadTemplate(path) {
   return promise;
 }
 
-async function renderFront(fields, photoImage, isChild) {
+async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings()) {
   const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.adultFront);
   const canvas = document.createElement("canvas");
   canvas.width = template.naturalWidth;
@@ -635,13 +683,13 @@ async function renderFront(fields, photoImage, isChild) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  ctx.font = 'bold 66pt "NotoSansHindi"';
+  ctx.font = 'bold 66pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, 86, { maxLines: 2, autoShrink: true, minSize: 28 });
 
   ctx.font = "bold 69pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
   ctx.fillText(fields.dob || "—", 1559, 805);
-  ctx.font = '60pt "NotoSansHindi"';
+  ctx.font = '60pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   ctx.fillText(fields.gender || "—", 982, 917);
   ctx.font = "70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
@@ -657,10 +705,30 @@ async function renderFront(fields, photoImage, isChild) {
   ctx.fillText(fields.issueDate || "", 0, 0);
   ctx.restore();
 
+  const photoX = 220;
+  const photoY = 510;
+  const photoWidth = 687;
+  const photoHeight = 862;
+
   ctx.save();
-  ctx.filter = "brightness(1.12) contrast(1.04)";
-  ctx.drawImage(photoImage, 220, 510, 687, 862);
+  ctx.filter = `brightness(${photoSettings.brightness}) contrast(${photoSettings.contrast})`;
+  ctx.drawImage(photoImage, photoX, photoY, photoWidth, photoHeight);
   ctx.restore();
+
+  if (photoSettings.borderEnabled && photoSettings.borderWidth > 0) {
+    ctx.save();
+    ctx.filter = "none";
+    ctx.strokeStyle = photoSettings.borderColor;
+    ctx.lineWidth = photoSettings.borderWidth;
+    const inset = ctx.lineWidth / 2;
+    ctx.strokeRect(
+      photoX + inset,
+      photoY + inset,
+      photoWidth - ctx.lineWidth,
+      photoHeight - ctx.lineWidth
+    );
+    ctx.restore();
+  }
 
   return canvas;
 }
@@ -685,7 +753,7 @@ async function renderBack(fields, qrImage, isChild) {
   const englishX = 200;
   const maxWidth = Math.max(300, qrX - paddingRight - hindiX);
 
-  ctx.font = (addressBold ? "bold " : "") + '75pt "NotoSansHindi"';
+  ctx.font = (addressBold ? "bold " : "") + '75pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   wrapCanvasText(ctx, fields.addressHindi || "—", hindiX, 705, maxWidth, 120, { maxLines: 6, autoShrink: true, minSize: 30 });
 
   ctx.font = (addressBold ? "bold " : "") + "62pt Arial";
