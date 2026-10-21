@@ -1082,7 +1082,10 @@ async function extractHindiNameRasterFromPage(page, viewport, source, renderScal
   // Keep enough padding for Devanagari marks above and below the baseline.
   const x0 = Math.max(pageView[0], minX - 2);
   const x1 = Math.min(pageView[2], maxX + 2);
-  const yTop = nameRow.y + fontSize * 1.2 + 1.5;
+  // Child PDFs place nearby text closer to the name; use a tighter top crop
+  // only for child cards so the preceding row cannot leak into the name image.
+  const topPaddingFactor = isChildLayout ? 0.95 : 1.2;
+  const yTop = nameRow.y + fontSize * topPaddingFactor + 1.5;
   const yBottom = nameRow.y - fontSize * 0.45 - 1;
   const p1 = viewport.convertToViewportPoint(x0, yTop);
   const p2 = viewport.convertToViewportPoint(x1, yBottom);
