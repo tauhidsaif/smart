@@ -309,7 +309,12 @@ async function prepareStagedPdf(file) {
   setStatus("Reading the PDF locally…", "info");
   const textColumns = await extractLines(pdf);
   const fields = extractFields(textColumns.left, textColumns.right);
-  const hindiRasters = await extractHindiRasters(pdf, fields, determineChild(fields.dob));
+  const hindiRasters = await extractHindiRasters(
+    pdf,
+    fields,
+    determineChild(fields.dob),
+    textColumns.firstPageContent
+  );
   const images = await extractEmbeddedImages(pdf);
   const chosen = choosePhotoAndQr(images);
 
@@ -479,10 +484,12 @@ async function openPdfFromDevice(file) {
 async function extractLines(pdf) {
   const leftLines = [];
   const rightLines = [];
+  let firstPageContent = null;
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
+    if (pageNumber === 1) firstPageContent = content;
     const pageView = page.view || [0, 0, 612, 792];
     const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
     const columnSplitX = pageView[0] + pageWidth / 2;
@@ -553,7 +560,7 @@ async function extractLines(pdf) {
     }
   }
 
-  return { left: leftLines, right: rightLines };
+  return { left: leftLines, right: rightLines, firstPageContent };
 }
 
 function extractFields(leftLines, rightLines = []) {
@@ -1085,10 +1092,34 @@ function thickenHindiNameRaster(canvas) {
   const height = canvas.height;
   const edgeStrength = 0.42;
 
+  // Find the visible glyph bounds first. Empty crop margins cannot affect the
+  // result, so skip their expensive neighbourhood checks.
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    let index = (y * width) * 4 + 3;
+    for (let x = 0; x < width; x += 1, index += 4) {
+      if (original[index] === 0) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (maxX < 0) return canvas;
+
   // Add a soft, anti-aliased edge around the isolated Hindi name glyphs.
   // Use only original pixels as the source so the effect cannot spread repeatedly.
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
+  const startX = Math.max(1, minX - 1);
+  const endX = Math.min(width - 1, maxX + 2);
+  const startY = Math.max(1, minY - 1);
+  const endY = Math.min(height - 1, maxY + 2);
+
+  for (let y = startY; y < endY; y += 1) {
+    for (let x = startX; x < endX; x += 1) {
       const i = (y * width + x) * 4;
       let strongestNeighborAlpha = 0;
 
@@ -1116,8 +1147,8 @@ function thickenHindiNameRaster(canvas) {
   return canvas;
 }
 
-async function extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout) {
-  const content = await page.getTextContent();
+async function extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout, pageTextContent = null) {
+  const content = pageTextContent || await page.getTextContent();
   const pageView = page.view || [0, 0, 612, 792];
   const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
   const columnSplitX = pageView[0] + pageWidth / 2;
@@ -1218,13 +1249,13 @@ async function extractHindiNameRasterFromPage(page, viewport, source, renderScal
   };
 }
 
-function findEnglishAddressLabelBottom(page, viewport, region, renderScale, sourceHeight) {
+function findEnglishAddressLabelBottom(page, viewport, region, renderScale, sourceHeight, pageTextContent = null) {
   const pageView = page.view || [0, 0, 612, 792];
   const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
   const minX = pageView[0] + pageWidth * region.left;
   const maxX = pageView[0] + pageWidth * region.right;
 
-  return page.getTextContent().then((content) => {
+  return Promise.resolve(pageTextContent || page.getTextContent()).then((content) => {
     const items = content.items
       .filter((item) => item && typeof item.str === "string" && item.str.trim())
       .map((item) => ({
@@ -1271,7 +1302,7 @@ function findEnglishAddressLabelBottom(page, viewport, region, renderScale, sour
   }).catch(() => null);
 }
 
-async function extractHindiRasters(pdf, fields, isChildLayout = false) {
+async function extractHindiRasters(pdf, fields, isChildLayout = false, pageTextContent = null) {
   // This path targets the standard one-page, letter-size e-Aadhaar sheet.
   // Unrecognized PDFs continue through the text-based fallback.
   if (
@@ -1309,9 +1340,14 @@ async function extractHindiRasters(pdf, fields, isChildLayout = false) {
   }).promise;
 
   // Reuse the high-resolution source render for the Hindi name and address.
-  const hindiNameRaster = await extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout);
+  const sharedPageText = pageTextContent || await page.getTextContent();
+  const hindiNameRaster = await extractHindiNameRasterFromPage(
+    page, viewport, source, renderScale, isChildLayout, sharedPageText
+  );
   const baseRegion = isChildLayout ? HINDI_ADDRESS_CROP.child : HINDI_ADDRESS_CROP.adult;
-  const adaptiveBottom = await findEnglishAddressLabelBottom(page, viewport, baseRegion, renderScale, source.height);
+  const adaptiveBottom = await findEnglishAddressLabelBottom(
+    page, viewport, baseRegion, renderScale, source.height, sharedPageText
+  );
   const region = {
     ...baseRegion,
     bottom: adaptiveBottom || baseRegion.bottom,
