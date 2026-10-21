@@ -67,8 +67,10 @@ const templateCache = new Map();
 // touching the other. Increase `top`/`bottom` to move the crop down the page,
 // decrease them to move it up.
 const HINDI_ADDRESS_CROP = {
-  adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 },
-  child: { left: 0.526, right: 0.757, top: 0.7690, bottom: 0.800 },
+  // A small extra lower margin helps prevent descenders/last lines from clipping
+  // on longer Hindi addresses; the fixed crop width keeps existing text scale.
+  adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.807 },
+  child: { left: 0.526, right: 0.757, top: 0.7690, bottom: 0.805 },
 };
 
 function readPhotoSettings() {
@@ -972,7 +974,7 @@ ctx.drawImage(template, 0, 0);
 
   const englishMaxWidth = Math.max(300, qrX - paddingRight - englishX);
   ctx.font = (addressIsBold ? "bold " : "") + "bold 62pt Arial";
-  wrapCanvasText(ctx, fields.addressEnglish || "—", englishX, 1170, englishMaxWidth, 100, {
+  wrapCanvasText(ctx, fields.addressEnglish || "—", englishX, 1170, englishMaxWidth, 92, {
     maxLines: 6, autoShrink: true, minSize: 26
   });
 
