@@ -864,7 +864,10 @@ ctx.drawImage(template, 0, 0);
   if (hindiNameRaster) {
     // Reuse original PDF glyphs to avoid broken Unicode/font mappings in some PDFs.
     const targetFontPixels = 70 * 96 / 72;
-    const drawScale = targetFontPixels / Math.max(1, hindiNameRaster.sourceFontPixels);
+    const drawScale = Math.min(
+      targetFontPixels / Math.max(1, hindiNameRaster.sourceFontPixels),
+      1400 / hindiNameRaster.canvas.width
+    );
     const drawX = 982 - hindiNameRaster.leftPadding * drawScale;
     const drawY = 553 - hindiNameRaster.baselineOffset * drawScale;
     ctx.drawImage(
