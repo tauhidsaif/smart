@@ -1083,25 +1083,31 @@ function thickenHindiNameRaster(canvas) {
   const pixels = image.data;
   const width = canvas.width;
   const height = canvas.height;
+  const edgeStrength = 0.42;
 
-  // Expand only the isolated name glyphs by one source pixel for a subtle bold effect.
+  // Add a soft, anti-aliased edge around the isolated Hindi name glyphs.
+  // Use only original pixels as the source so the effect cannot spread repeatedly.
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
       const i = (y * width + x) * 4;
-      const alpha = original[i + 3];
-      if (alpha < 96) continue;
+      let strongestNeighborAlpha = 0;
 
       for (let dy = -1; dy <= 1; dy += 1) {
         for (let dx = -1; dx <= 1; dx += 1) {
           if (dx === 0 && dy === 0) continue;
           const ni = ((y + dy) * width + (x + dx)) * 4;
-          if (pixels[ni + 3] < alpha) {
-            pixels[ni] = 0;
-            pixels[ni + 1] = 0;
-            pixels[ni + 2] = 0;
-            pixels[ni + 3] = alpha;
+          if (original[ni + 3] > strongestNeighborAlpha) {
+            strongestNeighborAlpha = original[ni + 3];
           }
         }
+      }
+
+      const softEdgeAlpha = Math.round(strongestNeighborAlpha * edgeStrength);
+      if (softEdgeAlpha > original[i + 3]) {
+        pixels[i] = 0;
+        pixels[i + 1] = 0;
+        pixels[i + 2] = 0;
+        pixels[i + 3] = softEdgeAlpha;
       }
     }
   }
