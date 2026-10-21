@@ -829,7 +829,7 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
   ctx.font = "bold 69pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
   ctx.fillText(fields.dob || "—", 1559, 805);
-  ctx.font = '60pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
+  ctx.font = 'bold 66pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   ctx.fillText(fields.gender || "—", 982, 917);
   ctx.font = "70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
