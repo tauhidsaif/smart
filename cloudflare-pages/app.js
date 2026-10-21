@@ -919,7 +919,7 @@ ctx.drawImage(template, 0, 0);
   }
 
   const englishMaxWidth = Math.max(300, qrX - paddingRight - englishX);
-  ctx.font = (addressIsBold ? "bold " : "") + "62pt Arial";
+  ctx.font = (addressIsBold ? "bold " : "") + "bold 62pt Arial";
   wrapCanvasText(ctx, fields.addressEnglish || "—", englishX, 1170, englishMaxWidth, 100, {
     maxLines: 6, autoShrink: true, minSize: 26
   });
