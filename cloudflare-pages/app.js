@@ -899,7 +899,7 @@ ctx.drawImage(template, 0, 0);
     // Re-create the label removed from the with-VID template; keep the DOB
     // label regular and the date bold at the same 70pt size.
     const dobLabel = "जन्म तिथि/DOB:";
-    ctx.font = '70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
     ctx.fillText(dobLabel, 982, 805);
     const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
     ctx.font = "bold 70pt Arial";
