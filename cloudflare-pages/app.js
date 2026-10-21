@@ -12,8 +12,6 @@ const generateBtn = $("generateBtn");
 const generateBtnText = $("generateBtnText");
 const spinner = $("spinner");
 const statusBox = $("status");
-const boldToggle = $("boldToggle");
-const boldToggleText = $("boldToggleText");
 const photoSettingsOpenBtn = $("photoSettingsOpenBtn");
 const photoSettingsDialog = $("photoSettingsDialog");
 const closePhotoSettings = $("closePhotoSettings");
@@ -223,14 +221,6 @@ fileInput.addEventListener("change", () => {
   fileName.textContent = file ? file.name + " · " + formatBytes(file.size) : "No file selected";
 });
 
-boldToggle.addEventListener("click", () => {
-  addressBold = !addressBold;
-  boldToggle.setAttribute("aria-pressed", String(addressBold));
-  boldToggleText.textContent = addressBold ? "Make address normal" : "Make address bold";
-  if (generated) {
-    setStatus("Formatting preference changed. Generate the card again to apply it.", "info");
-  }
-});
 
 generateBtn.addEventListener("click", async () => {
   if (isBusy) return;
