@@ -830,12 +830,12 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
   ctx.fillText(fields.dob || "—", 1559, 805);
   ctx.font = 'bold 66pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-  ctx.fillText(fields.gender || "—", 982, 917);
-  ctx.font = "70pt Arial";
+  ctx.fillText(fields.gender || "—", 982, 920);
+  ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
   ctx.font = "bold 130pt Arial";
   ctx.fillText(fields.aadhaar || "—", 947, 1609);
-  ctx.font = "60pt Arial";
+  ctx.font = "bold 60pt Arial";
   ctx.fillText(fields.vid || "—", 1255, 1703);
 
   ctx.save();
