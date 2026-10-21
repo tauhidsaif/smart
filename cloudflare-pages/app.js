@@ -58,6 +58,10 @@ const TEMPLATE_PATHS = {
   adultBack: "./assets/templates/adult-back.png",
   childFront: "./assets/templates/child-front.png",
   childBack: "./assets/templates/child-back.png",
+  adultFrontNoVid: "./assets/templates/no-vid/adult-front.png",
+  adultBackNoVid: "./assets/templates/no-vid/adult-back.png",
+  childFrontNoVid: "./assets/templates/no-vid/child-front.png",
+  childBackNoVid: "./assets/templates/no-vid/child-back.png",
 };
 const templateCache = new Map();
 
@@ -847,7 +851,11 @@ function loadTemplate(path) {
 }
 
 async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings(), hindiNameRaster = null) {
-  const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.adultFront);
+  const hasVid = Boolean(String(fields.vid || "").trim());
+  const templatePath = isChild
+    ? (hasVid ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.childFrontNoVid)
+    : (hasVid ? TEMPLATE_PATHS.adultFront : TEMPLATE_PATHS.adultFrontNoVid);
+  const template = await loadTemplate(templatePath);
 const scale = 2;
 
 const canvas = document.createElement("canvas");
@@ -887,15 +895,38 @@ ctx.drawImage(template, 0, 0);
 
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
-  ctx.fillText(fields.dob || "—", 1559, 805);
+  if (hasVid) {
+    // Re-create the label removed from the with-VID template; keep the DOB
+    // label regular and the date bold at the same 70pt size.
+    const dobLabel = "जन्म तिथि/DOB:";
+    ctx.font = '70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+    ctx.fillText(dobLabel, 982, 805);
+    const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
+    ctx.font = "bold 70pt Arial";
+    ctx.fillText(fields.dob || "—", dobDateX, 805);
+  } else {
+    ctx.font = "bold 70pt Arial";
+    ctx.fillText(fields.dob || "—", 1559, 805);
+  }
   ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   ctx.fillText(fields.gender || "—", 982, 925);
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
-  ctx.font = "bold 130pt Arial";
-  ctx.fillText(fields.aadhaar || "—", 947, 1609);
-  ctx.font = "bold 60pt Arial";
-  ctx.fillText(fields.vid || "—", 1255, 1706);
+  if (hasVid) {
+    // Slightly enlarge the Aadhaar number and center it on the with-VID template.
+    ctx.textAlign = "center";
+    ctx.font = "bold 135pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1609);
+    ctx.textAlign = "left";
+    ctx.font = "bold 60pt Arial";
+    ctx.fillText(fields.vid, 1255, 1706);
+  } else {
+    // No-VID templates have no separate VID line: enlarge and center the Aadhaar number.
+    ctx.textAlign = "center";
+    ctx.font = "bold 145pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1650);
+    ctx.textAlign = "left";
+  }
 
   ctx.save();
   ctx.translate(140, 820);
@@ -933,7 +964,11 @@ ctx.drawImage(template, 0, 0);
 }
 
 async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindiAddressRaster = null) {
-  const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.adultBack);
+  const hasVid = Boolean(String(fields.vid || "").trim());
+  const templatePath = isChild
+    ? (hasVid ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.childBackNoVid)
+    : (hasVid ? TEMPLATE_PATHS.adultBack : TEMPLATE_PATHS.adultBackNoVid);
+  const template = await loadTemplate(templatePath);
  const scale = 2;
 
 const canvas = document.createElement("canvas");
@@ -986,10 +1021,21 @@ ctx.drawImage(template, 0, 0);
   ctx.fillText(fields.detailsDate || "", 0, 0);
   ctx.restore();
 
-  ctx.font = "bold 130pt Arial";
-  ctx.fillText(fields.aadhaar || "—", 947, 1600);
-  ctx.font = "bold 60pt Arial";
-  ctx.fillText(fields.vid || "—", 1245, 1688);
+  if (hasVid) {
+    // Slightly enlarge the Aadhaar number and center it on the with-VID template.
+    ctx.textAlign = "center";
+    ctx.font = "bold 135pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1600);
+    ctx.textAlign = "left";
+    ctx.font = "bold 60pt Arial";
+    ctx.fillText(fields.vid, 1245, 1688);
+  } else {
+    // No-VID templates have no separate VID line: enlarge and center the Aadhaar number.
+    ctx.textAlign = "center";
+    ctx.font = "bold 145pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1645);
+    ctx.textAlign = "left";
+  }
   if (qrImage) ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
   return canvas;
 }
