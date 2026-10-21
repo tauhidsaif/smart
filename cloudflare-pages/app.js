@@ -44,6 +44,7 @@ let generated = null;
 let isBusy = false;
 let hindiFontReady = false;
 let photoSettingsSnapshot = null;
+let previewObjectUrls = { front: null, back: null };
 let savedPhotoSettings = {
   brightness: 1.25,
   contrast: 1.35,
@@ -181,7 +182,7 @@ savePhotoSettings.addEventListener("click", async () => {
   try {
     setStatus("Applying photo settings to the card…", "info");
     const isChild = determineChild(generated.fields.dob);
-    const frontCanvas = await renderFront(generated.fields, staged.photo, isChild, savedPhotoSettings);
+    const frontCanvas = await renderFront(generated.fields, staged.photo, isChild, savedPhotoSettings, staged.hindiNameRaster);
     const backCanvas = await renderBack(
       generated.fields,
       staged.qr,
@@ -190,7 +191,7 @@ savePhotoSettings.addEventListener("click", async () => {
       staged.hindiAddressRaster
     );
     generated = { ...generated, frontCanvas, backCanvas, isChild };
-    updateGeneratedPreviews();
+    await updateGeneratedPreviews();
     setStatus("Photo settings applied. Download the updated card image or PDF.", "success");
   } catch (error) {
     console.error("Could not apply photo settings:", error);
@@ -206,6 +207,7 @@ writePhotoSettings(savedPhotoSettings);
 fileInput.addEventListener("change", () => {
   staged = null;
   generated = null;
+  clearGeneratedPreviewUrls();
   results.hidden = true;
   dobPanel.hidden = true;
   fullDobInput.value = "";
@@ -262,7 +264,7 @@ generateBtn.addEventListener("click", async () => {
     setStatus("Drawing card templates and preparing downloads…", "info");
     await loadHindiFont();
     const isChild = determineChild(fields.dob);
-    const frontCanvas = await renderFront(fields, staged.photo, isChild, savedPhotoSettings);
+    const frontCanvas = await renderFront(fields, staged.photo, isChild, savedPhotoSettings, staged.hindiNameRaster);
     const backCanvas = await renderBack(
       fields,
       staged.qr,
@@ -272,14 +274,14 @@ generateBtn.addEventListener("click", async () => {
     );
 
     generated = { frontCanvas, backCanvas, fields, isChild };
-    updateGeneratedPreviews();
+    await updateGeneratedPreviews();
     results.hidden = false;
     dobPanel.hidden = true;
     setStatus(
-      staged.hindiAddressRaster
-        ? "Card generated. The Hindi address is rendered from the source PDF to preserve its original glyphs."
-        : "Card generated locally. Review the Hindi address carefully before printing.",
-      staged.hindiAddressRaster ? "success" : "info"
+      (staged.hindiNameRaster || staged.hindiAddressRaster)
+        ? "Card generated. Supported Hindi name/address text is preserved from the source PDF."
+        : "Card generated locally. Review the Hindi text carefully before printing.",
+      (staged.hindiNameRaster || staged.hindiAddressRaster) ? "success" : "info"
     );
     results.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
@@ -300,7 +302,7 @@ async function prepareStagedPdf(file) {
   setStatus("Reading the PDF locally…", "info");
   const textColumns = await extractLines(pdf);
   const fields = extractFields(textColumns.left, textColumns.right);
-  const hindiAddressRaster = await extractHindiAddressRaster(pdf, fields, determineChild(fields.dob));
+  const hindiRasters = await extractHindiRasters(pdf, fields, determineChild(fields.dob));
   const images = await extractEmbeddedImages(pdf);
   const chosen = choosePhotoAndQr(images);
 
@@ -317,18 +319,56 @@ async function prepareStagedPdf(file) {
     fields,
     photo: chosen.photo.canvas,
     qr: chosen.qr.canvas,
-    hindiAddressRaster,
+    hindiAddressRaster: hindiRasters ? hindiRasters.address : null,
+    hindiNameRaster: hindiRasters ? hindiRasters.name : null,
     imageCount: images.length,
   };
   return staged;
 }
 
-function updateGeneratedPreviews() {
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not encode the generated card image."));
+    }, "image/png");
+  });
+}
+
+function clearGeneratedPreviewUrls() {
+  if (previewObjectUrls.front) URL.revokeObjectURL(previewObjectUrls.front);
+  if (previewObjectUrls.back) URL.revokeObjectURL(previewObjectUrls.back);
+  previewObjectUrls = { front: null, back: null };
+  frontPreview.removeAttribute("src");
+  backPreview.removeAttribute("src");
+  frontPng.removeAttribute("href");
+  backPng.removeAttribute("href");
+}
+
+async function updateGeneratedPreviews() {
   if (!generated) return;
-  frontPreview.src = generated.frontCanvas.toDataURL("image/png");
-  backPreview.src = generated.backCanvas.toDataURL("image/png");
-  frontPng.href = frontPreview.src;
-  backPng.href = backPreview.src;
+
+  // toBlob avoids large base64 strings and lets the browser encode PNGs asynchronously.
+  const [frontBlob, backBlob] = await Promise.all([
+    canvasToBlob(generated.frontCanvas),
+    canvasToBlob(generated.backCanvas),
+  ]);
+  const nextUrls = {
+    front: URL.createObjectURL(frontBlob),
+    back: URL.createObjectURL(backBlob),
+  };
+  const previousUrls = previewObjectUrls;
+
+  frontPreview.src = nextUrls.front;
+  backPreview.src = nextUrls.back;
+  frontPng.href = nextUrls.front;
+  backPng.href = nextUrls.back;
+  previewObjectUrls = nextUrls;
+  generated = { ...generated, frontBlob, backBlob };
+
+  if (previousUrls.front) URL.revokeObjectURL(previousUrls.front);
+  if (previousUrls.back) URL.revokeObjectURL(previousUrls.back);
+
   const file = fileInput.files && fileInput.files[0];
   const baseName = safeName(file ? file.name : "smart");
   frontPng.download = baseName + "-front.png";
@@ -358,8 +398,12 @@ downloadPdfBtn.addEventListener("click", async () => {
     const xRight = (105 * 72) / 25.4;
     const y = (pageHeight - cardHeight) / 2;
     const page = doc.addPage([pageWidth, pageHeight]);
-    const front = await doc.embedPng(generated.frontCanvas.toDataURL("image/png"));
-    const back = await doc.embedPng(generated.backCanvas.toDataURL("image/png"));
+    const [frontBytes, backBytes] = await Promise.all([
+      generated.frontBlob.arrayBuffer(),
+      generated.backBlob.arrayBuffer(),
+    ]);
+    const front = await doc.embedPng(new Uint8Array(frontBytes));
+    const back = await doc.embedPng(new Uint8Array(backBytes));
     page.drawImage(front, { x: xLeft, y, width: cardWidth, height: cardHeight });
     page.drawRectangle({ x: xLeft, y, width: cardWidth, height: cardHeight, borderColor: window.PDFLib.rgb(0, 0, 0), borderWidth: 0.6 });
     page.drawImage(back, { x: xRight, y, width: cardWidth, height: cardHeight });
@@ -799,7 +843,7 @@ function loadTemplate(path) {
   return promise;
 }
 
-async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings()) {
+async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings(), hindiNameRaster = null) {
   const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.adultFront);
 const scale = 2;
 
@@ -817,8 +861,23 @@ ctx.drawImage(template, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-  wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, 86, { maxLines: 2, autoShrink: true, minSize: 28 });
+  if (hindiNameRaster) {
+    // Reuse original PDF glyphs to avoid broken Unicode/font mappings in some PDFs.
+    const targetFontPixels = 70 * 96 / 72;
+    const drawScale = targetFontPixels / Math.max(1, hindiNameRaster.sourceFontPixels);
+    const drawX = 982 - hindiNameRaster.leftPadding * drawScale;
+    const drawY = 553 - hindiNameRaster.baselineOffset * drawScale;
+    ctx.drawImage(
+      hindiNameRaster.canvas,
+      drawX,
+      drawY,
+      hindiNameRaster.canvas.width * drawScale,
+      hindiNameRaster.canvas.height * drawScale
+    );
+  } else {
+    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
+    wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, 86, { maxLines: 2, autoShrink: true, minSize: 28 });
+  }
 
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
@@ -930,7 +989,138 @@ ctx.drawImage(template, 0, 0);
 }
 
 
-async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
+function removePaperBackground(crop) {
+  const cropContext = crop.getContext("2d", { willReadFrequently: true });
+  const imageData = cropContext.getImageData(0, 0, crop.width, crop.height);
+  const pixels = imageData.data;
+  const histogram = new Uint32Array(256);
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    histogram[Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3)] += 1;
+  }
+
+  let background = 255;
+  let bestCount = -1;
+  for (let value = 255; value >= 128; value -= 1) {
+    if (histogram[value] > bestCount) {
+      bestCount = histogram[value];
+      background = value;
+    }
+  }
+
+  const noiseFloor = background - 3;
+  const inkRange = Math.max(1, background - 25);
+  for (let i = 0; i < pixels.length; i += 4) {
+    const luminance = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+    pixels[i] = 0;
+    pixels[i + 1] = 0;
+    pixels[i + 2] = 0;
+    pixels[i + 3] = luminance >= noiseFloor
+      ? 0
+      : Math.min(255, Math.round(((background - luminance) / inkRange) * 255));
+  }
+
+  cropContext.putImageData(imageData, 0, 0);
+  return crop;
+}
+
+async function extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout) {
+  const content = await page.getTextContent();
+  const pageView = page.view || [0, 0, 612, 792];
+  const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
+  const columnSplitX = pageView[0] + pageWidth / 2;
+
+  const items = content.items
+    .filter((item) => item && typeof item.str === "string" && item.str.trim())
+    .map((item) => ({
+      str: item.str,
+      x: item.transform ? item.transform[4] : 0,
+      y: item.transform ? item.transform[5] : 0,
+      width: Number(item.width) || 0,
+      size: item.transform
+        ? Math.hypot(item.transform[0], item.transform[1])
+        : (Number(item.height) || 10),
+    }))
+    .filter((item) => item.x < columnSplitX)
+    .sort((a, b) => b.y - a.y || a.x - b.x);
+
+  const rows = [];
+  for (const item of items) {
+    const tolerance = Math.max(1.5, Math.min(5, item.size * 0.35));
+    let row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
+    if (!row) {
+      row = { y: item.y, items: [] };
+      rows.push(row);
+    }
+    row.items.push(item);
+    row.y = row.items.reduce((sum, part) => sum + part.y, 0) / row.items.length;
+  }
+  rows.sort((a, b) => b.y - a.y);
+
+  const toRowIndex = rows.findIndex((row) =>
+    /^to\s*:?$/i.test(row.items.map((item) => item.str.trim()).join(" ").replace(/\s+/g, " ").trim())
+  );
+  if (toRowIndex < 0) return null;
+
+  const toY = rows[toRowIndex].y;
+  const nameRow = rows.slice(toRowIndex + 1).find((row) =>
+    row.y < toY && row.items.some((item) => /[\u0900-\u097F]/u.test(item.str))
+  );
+  if (!nameRow) return null;
+
+  const minX = Math.min(...nameRow.items.map((item) => item.x));
+  const maxX = Math.max(...nameRow.items.map((item) => item.x + item.width));
+  const fontSize = Math.max(...nameRow.items.map((item) => item.size));
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(fontSize) || maxX <= minX || fontSize <= 0) return null;
+
+  // Keep enough padding for Devanagari marks above and below the baseline.
+  const x0 = Math.max(pageView[0], minX - 2);
+  const x1 = Math.min(pageView[2], maxX + 2);
+  const yTop = nameRow.y + fontSize * 1.2 + 1.5;
+  const yBottom = nameRow.y - fontSize * 0.45 - 1;
+  const p1 = viewport.convertToViewportPoint(x0, yTop);
+  const p2 = viewport.convertToViewportPoint(x1, yBottom);
+
+  const sx = Math.max(0, Math.floor(Math.min(p1[0], p2[0])));
+  const sy = Math.max(0, Math.floor(Math.min(p1[1], p2[1])));
+  const ex = Math.min(source.width, Math.ceil(Math.max(p1[0], p2[0])));
+  const ey = Math.min(source.height, Math.ceil(Math.max(p1[1], p2[1])));
+  const sw = ex - sx;
+  const sh = ey - sy;
+  if (sw <= 0 || sh <= 0 || sw > source.width * 0.5 || sh > source.height * 0.1) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = sw;
+  canvas.height = sh;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  const pixels = context.getImageData(0, 0, sw, sh).data;
+  let darkPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] < 120 && pixels[i + 1] < 120 && pixels[i + 2] < 120) {
+      darkPixels += 1;
+      if (darkPixels >= 20) break;
+    }
+  }
+  if (darkPixels < 20) {
+    canvas.width = 0;
+    canvas.height = 0;
+    return null;
+  }
+
+  if (isChildLayout) removePaperBackground(canvas);
+
+  const baselinePoint = viewport.convertToViewportPoint(minX, nameRow.y);
+  return {
+    canvas,
+    baselineOffset: Math.max(0, baselinePoint[1] - sy),
+    leftPadding: Math.max(0, baselinePoint[0] - sx),
+    sourceFontPixels: fontSize * renderScale,
+  };
+}
+
+async function extractHindiRasters(pdf, fields, isChildLayout = false) {
   // This path targets the standard one-page, letter-size e-Aadhaar sheet.
   // Unrecognized PDFs continue through the text-based fallback.
   if (
@@ -967,6 +1157,8 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
     background: "rgb(255,255,255)",
   }).promise;
 
+  // Reuse the high-resolution source render for the Hindi name and address.
+  const hindiNameRaster = await extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout);
   const region = isChildLayout ? HINDI_ADDRESS_CROP.child : HINDI_ADDRESS_CROP.adult;
   let sy = Math.round(region.top * source.height);
   let sh = Math.round((region.bottom - region.top) * source.height);
@@ -976,7 +1168,7 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
   if (sh <= 0 || sy + sh > source.height) {
     source.width = 0;
     source.height = 0;
-    return null;
+    return hindiNameRaster ? { name: hindiNameRaster, address: null } : null;
   }
 
   const crop = document.createElement("canvas");
@@ -997,49 +1189,18 @@ async function extractHindiAddressRaster(pdf, fields, isChildLayout = false) {
     }
   }
 
-  if (darkPixels <= 350) {
-    source.width = 0;
-    source.height = 0;
-    return null;
-  }
-
-  // The adult template uses a white background. The child template is pale
-  // blue, so remove the scanned white paper from the child crop while keeping
-  // anti-aliased black glyph edges transparent and smooth.
-  if (isChildLayout) {
-    // The child sheet's panel is not pure white, so a plain "255 - luminance"
-    // alpha leaves a faint grey rectangle over the template. Measure the actual
-    // paper tone and make only the ink opaque.
-    const histogram = new Uint32Array(256);
-    for (let i = 0; i < pixels.length; i += 4) {
-      histogram[Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3)] += 1;
-    }
-    let background = 255;
-    let bestCount = -1;
-    for (let value = 255; value >= 128; value -= 1) {
-      if (histogram[value] > bestCount) {
-        bestCount = histogram[value];
-        background = value;
-      }
-    }
-
-    const noiseFloor = background - 3;
-    const inkRange = Math.max(1, background - 25);
-    for (let i = 0; i < pixels.length; i += 4) {
-      const luminance = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-      pixels[i] = 0;
-      pixels[i + 1] = 0;
-      pixels[i + 2] = 0;
-      pixels[i + 3] = luminance >= noiseFloor
-        ? 0
-        : Math.min(255, Math.round(((background - luminance) / inkRange) * 255));
-    }
-    cropContext.putImageData(imageData, 0, 0);
+  let hindiAddressRaster = null;
+  if (darkPixels > 350) {
+    hindiAddressRaster = isChildLayout ? removePaperBackground(crop) : crop;
+  } else {
+    crop.width = 0;
+    crop.height = 0;
   }
 
   source.width = 0;
   source.height = 0;
-  return crop;
+  if (!hindiNameRaster && !hindiAddressRaster) return null;
+  return { name: hindiNameRaster, address: hindiAddressRaster };
 }
 
 function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, options) {
