@@ -51,17 +51,6 @@
       <input id="pdfPassword" class="text-input" type="password" autocomplete="off" placeholder="Leave empty to try the filename as password">
       <p class="field-help">For example, if the password is RAHU2004, the PDF filename may be RAHU2004.pdf.</p>
 
-      <div class="format-row">
-        <div>
-          <strong>Card information weight</strong>
-          <p>Make the generated information normal or bold.</p>
-        </div>
-        <button id="boldToggle" class="toggle-button" type="button" aria-pressed="false">
-          <span class="bold-symbol" aria-hidden="true">B</span>
-          <span id="boldToggleText">Make all text bold</span>
-        </button>
-      </div>
-
       <button id="photoSettingsOpenBtn" class="settings-launch" type="button">
         <span class="settings-launch-icon" aria-hidden="true">⚙</span>
         <span class="settings-launch-copy">
@@ -185,6 +174,5 @@
 
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
   <script type="module" src="./app.js"></script>
-  <script src="./text-style.js"></script>
 </body>
 </html>
