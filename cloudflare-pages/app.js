@@ -67,10 +67,11 @@ const templateCache = new Map();
 // touching the other. Increase `top`/`bottom` to move the crop down the page,
 // decrease them to move it up.
 const HINDI_ADDRESS_CROP = {
-  // A small extra lower margin helps prevent descenders/last lines from clipping
-  // on longer Hindi addresses; the fixed crop width keeps existing text scale.
-  adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.807 },
-  child: { left: 0.526, right: 0.757, top: 0.7690, bottom: 0.805 },
+  // These are safe fallback bounds. When possible, the crop bottom is calculated
+  // from the source PDF's English "Address:" heading so long and short addresses
+  // both end before the next heading.
+  adult: { left: 0.526, right: 0.757, top: 0.773, bottom: 0.802 },
+  child: { left: 0.526, right: 0.757, top: 0.7690, bottom: 0.800 },
 };
 
 function readPhotoSettings() {
@@ -1125,6 +1126,59 @@ async function extractHindiNameRasterFromPage(page, viewport, source, renderScal
   };
 }
 
+function findEnglishAddressLabelBottom(page, viewport, region, renderScale, sourceHeight) {
+  const pageView = page.view || [0, 0, 612, 792];
+  const pageWidth = Math.abs(pageView[2] - pageView[0]) || 612;
+  const minX = pageView[0] + pageWidth * region.left;
+  const maxX = pageView[0] + pageWidth * region.right;
+
+  return page.getTextContent().then((content) => {
+    const items = content.items
+      .filter((item) => item && typeof item.str === "string" && item.str.trim())
+      .map((item) => ({
+        str: item.str,
+        x: item.transform ? item.transform[4] : 0,
+        y: item.transform ? item.transform[5] : 0,
+        size: item.transform
+          ? Math.hypot(item.transform[0], item.transform[1])
+          : (Number(item.height) || 10),
+      }))
+      .filter((item) => item.x >= minX - 6 && item.x <= maxX && item.x >= pageView[0] + pageWidth / 2);
+
+    const rows = [];
+    for (const item of items) {
+      const tolerance = Math.max(1.5, Math.min(5, item.size * 0.35));
+      let row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
+      if (!row) {
+        row = { y: item.y, items: [] };
+        rows.push(row);
+      }
+      row.items.push(item);
+      row.y = row.items.reduce((sum, part) => sum + part.y, 0) / row.items.length;
+    }
+
+    const labelRow = rows.find((row) => {
+      const text = row.items
+        .slice()
+        .sort((a, b) => a.x - b.x)
+        .map((item) => item.str.trim())
+        .join("")
+        .replace(/\s+/g, "");
+      return /^address:*$/i.test(text);
+    });
+    if (!labelRow) return null;
+
+    const fontSize = Math.max(...labelRow.items.map((item) => item.size));
+    const baselineY = viewport.convertToViewportPoint(minX, labelRow.y)[1];
+    // Stop above the heading ink, leaving a small blank gap instead of cropping
+    // the "Address:" label into the Hindi address image.
+    const bottomPixels = baselineY - fontSize * renderScale * 1.05;
+    const bottom = bottomPixels / sourceHeight;
+    if (!Number.isFinite(bottom) || bottom <= region.top + 0.005 || bottom > 0.86) return null;
+    return bottom;
+  }).catch(() => null);
+}
+
 async function extractHindiRasters(pdf, fields, isChildLayout = false) {
   // This path targets the standard one-page, letter-size e-Aadhaar sheet.
   // Unrecognized PDFs continue through the text-based fallback.
@@ -1164,7 +1218,12 @@ async function extractHindiRasters(pdf, fields, isChildLayout = false) {
 
   // Reuse the high-resolution source render for the Hindi name and address.
   const hindiNameRaster = await extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout);
-  const region = isChildLayout ? HINDI_ADDRESS_CROP.child : HINDI_ADDRESS_CROP.adult;
+  const baseRegion = isChildLayout ? HINDI_ADDRESS_CROP.child : HINDI_ADDRESS_CROP.adult;
+  const adaptiveBottom = await findEnglishAddressLabelBottom(page, viewport, baseRegion, renderScale, source.height);
+  const region = {
+    ...baseRegion,
+    bottom: adaptiveBottom || baseRegion.bottom,
+  };
   let sy = Math.round(region.top * source.height);
   let sh = Math.round((region.bottom - region.top) * source.height);
 
