@@ -811,11 +811,15 @@ function loadTemplate(path) {
 
 async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings()) {
   const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.adultFront);
-  const canvas = document.createElement("canvas");
-  canvas.width = template.naturalWidth;
-  canvas.height = template.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(template, 0, 0);
+const scale = 2;
+
+const canvas = document.createElement("canvas");
+canvas.width = template.naturalWidth * scale;
+canvas.height = template.naturalHeight * scale;
+
+const ctx = canvas.getContext("2d");
+ctx.scale(scale, scale);
+ctx.drawImage(template, 0, 0);
   ctx.fillStyle = "#000";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -875,11 +879,15 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
 
 async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindiAddressRaster = null) {
   const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.adultBack);
-  const canvas = document.createElement("canvas");
-  canvas.width = template.naturalWidth;
-  canvas.height = template.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(template, 0, 0);
+ const scale = 2;
+
+const canvas = document.createElement("canvas");
+canvas.width = template.naturalWidth * scale;
+canvas.height = template.naturalHeight * scale;
+
+const ctx = canvas.getContext("2d");
+ctx.scale(scale, scale);
+ctx.drawImage(template, 0, 0);
   ctx.fillStyle = "#000";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
