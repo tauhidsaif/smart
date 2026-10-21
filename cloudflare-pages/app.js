@@ -836,7 +836,7 @@ async function renderFront(fields, photoImage, isChild, photoSettings = readPhot
   ctx.font = "bold 130pt Arial";
   ctx.fillText(fields.aadhaar || "—", 947, 1609);
   ctx.font = "bold 60pt Arial";
-  ctx.fillText(fields.vid || "—", 1255, 1703);
+  ctx.fillText(fields.vid || "—", 1255, 1706);
 
   ctx.save();
   ctx.translate(140, 820);
@@ -925,7 +925,7 @@ async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindi
 
   ctx.font = "bold 130pt Arial";
   ctx.fillText(fields.aadhaar || "—", 947, 1600);
-  ctx.font = "60pt Arial";
+  ctx.font = "bold 60pt Arial";
   ctx.fillText(fields.vid || "—", 1245, 1688);
   if (qrImage) ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
   return canvas;
