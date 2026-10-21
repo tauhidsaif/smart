@@ -58,6 +58,10 @@ const TEMPLATE_PATHS = {
   adultBack: "./assets/templates/adult-back.png",
   childFront: "./assets/templates/child-front.png",
   childBack: "./assets/templates/child-back.png",
+  adultFrontNoVid: "./assets/templates/no-vid/adult-front.png",
+  adultBackNoVid: "./assets/templates/no-vid/adult-back.png",
+  childFrontNoVid: "./assets/templates/no-vid/child-front.png",
+  childBackNoVid: "./assets/templates/no-vid/child-back.png",
 };
 const templateCache = new Map();
 
@@ -847,7 +851,11 @@ function loadTemplate(path) {
 }
 
 async function renderFront(fields, photoImage, isChild, photoSettings = readPhotoSettings(), hindiNameRaster = null) {
-  const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.adultFront);
+  const hasVid = Boolean(String(fields.vid || "").trim());
+  const templatePath = isChild
+    ? (hasVid ? TEMPLATE_PATHS.childFront : TEMPLATE_PATHS.childFrontNoVid)
+    : (hasVid ? TEMPLATE_PATHS.adultFront : TEMPLATE_PATHS.adultFrontNoVid);
+  const template = await loadTemplate(templatePath);
 const scale = 2;
 
 const canvas = document.createElement("canvas");
@@ -894,8 +902,10 @@ ctx.drawImage(template, 0, 0);
   ctx.fillText(fields.mobile || "—", 1245, 1061);
   ctx.font = "bold 130pt Arial";
   ctx.fillText(fields.aadhaar || "—", 947, 1609);
-  ctx.font = "bold 60pt Arial";
-  ctx.fillText(fields.vid || "—", 1255, 1706);
+  if (hasVid) {
+    ctx.font = "bold 60pt Arial";
+    ctx.fillText(fields.vid, 1255, 1706);
+  }
 
   ctx.save();
   ctx.translate(140, 820);
@@ -933,7 +943,11 @@ ctx.drawImage(template, 0, 0);
 }
 
 async function renderBack(fields, qrImage, isChild, addressIsBold = false, hindiAddressRaster = null) {
-  const template = await loadTemplate(isChild ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.adultBack);
+  const hasVid = Boolean(String(fields.vid || "").trim());
+  const templatePath = isChild
+    ? (hasVid ? TEMPLATE_PATHS.childBack : TEMPLATE_PATHS.childBackNoVid)
+    : (hasVid ? TEMPLATE_PATHS.adultBack : TEMPLATE_PATHS.adultBackNoVid);
+  const template = await loadTemplate(templatePath);
  const scale = 2;
 
 const canvas = document.createElement("canvas");
@@ -988,8 +1002,10 @@ ctx.drawImage(template, 0, 0);
 
   ctx.font = "bold 130pt Arial";
   ctx.fillText(fields.aadhaar || "—", 947, 1600);
-  ctx.font = "bold 60pt Arial";
-  ctx.fillText(fields.vid || "—", 1245, 1688);
+  if (hasVid) {
+    ctx.font = "bold 60pt Arial";
+    ctx.fillText(fields.vid, 1245, 1688);
+  }
   if (qrImage) ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
   return canvas;
 }
