@@ -900,11 +900,19 @@ ctx.drawImage(template, 0, 0);
   ctx.fillText(fields.gender || "—", 982, 925);
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
-  ctx.font = "bold 130pt Arial";
-  ctx.fillText(fields.aadhaar || "—", 947, 1609);
   if (hasVid) {
+    // Preserve the established layout for cards that include a VID.
+    ctx.textAlign = "left";
+    ctx.font = "bold 130pt Arial";
+    ctx.fillText(fields.aadhaar || "—", 947, 1609);
     ctx.font = "bold 60pt Arial";
     ctx.fillText(fields.vid, 1255, 1706);
+  } else {
+    // No-VID templates have no separate VID line: enlarge and center the Aadhaar number.
+    ctx.textAlign = "center";
+    ctx.font = "bold 145pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1650);
+    ctx.textAlign = "left";
   }
 
   ctx.save();
@@ -1000,11 +1008,19 @@ ctx.drawImage(template, 0, 0);
   ctx.fillText(fields.detailsDate || "", 0, 0);
   ctx.restore();
 
-  ctx.font = "bold 130pt Arial";
-  ctx.fillText(fields.aadhaar || "—", 947, 1600);
   if (hasVid) {
+    // Preserve the established layout for cards that include a VID.
+    ctx.textAlign = "left";
+    ctx.font = "bold 130pt Arial";
+    ctx.fillText(fields.aadhaar || "—", 947, 1600);
     ctx.font = "bold 60pt Arial";
     ctx.fillText(fields.vid, 1245, 1688);
+  } else {
+    // No-VID templates have no separate VID line: enlarge and center the Aadhaar number.
+    ctx.textAlign = "center";
+    ctx.font = "bold 145pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1645);
+    ctx.textAlign = "left";
   }
   if (qrImage) ctx.drawImage(qrImage, qrX, 463, 1000, 1000);
   return canvas;
