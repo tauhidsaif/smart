@@ -895,16 +895,29 @@ ctx.drawImage(template, 0, 0);
 
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
-  ctx.fillText(fields.dob || "—", 1559, 805);
+  if (hasVid) {
+    // Re-create the label removed from the with-VID template; keep the DOB
+    // label regular and the date bold at the same 70pt size.
+    const dobLabel = "जन्म तिथि/DOB:";
+    ctx.font = '70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+    ctx.fillText(dobLabel, 982, 805);
+    const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
+    ctx.font = "bold 70pt Arial";
+    ctx.fillText(fields.dob || "—", dobDateX, 805);
+  } else {
+    ctx.font = "bold 70pt Arial";
+    ctx.fillText(fields.dob || "—", 1559, 805);
+  }
   ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   ctx.fillText(fields.gender || "—", 982, 925);
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.mobile || "—", 1245, 1061);
   if (hasVid) {
-    // Preserve the established layout for cards that include a VID.
+    // Slightly enlarge the Aadhaar number and center it on the with-VID template.
+    ctx.textAlign = "center";
+    ctx.font = "bold 135pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1609);
     ctx.textAlign = "left";
-    ctx.font = "bold 130pt Arial";
-    ctx.fillText(fields.aadhaar || "—", 947, 1609);
     ctx.font = "bold 60pt Arial";
     ctx.fillText(fields.vid, 1255, 1706);
   } else {
@@ -1009,10 +1022,11 @@ ctx.drawImage(template, 0, 0);
   ctx.restore();
 
   if (hasVid) {
-    // Preserve the established layout for cards that include a VID.
+    // Slightly enlarge the Aadhaar number and center it on the with-VID template.
+    ctx.textAlign = "center";
+    ctx.font = "bold 135pt Arial";
+    ctx.fillText(fields.aadhaar || "—", template.naturalWidth / 2, 1600);
     ctx.textAlign = "left";
-    ctx.font = "bold 130pt Arial";
-    ctx.fillText(fields.aadhaar || "—", 947, 1600);
     ctx.font = "bold 60pt Arial";
     ctx.fillText(fields.vid, 1245, 1688);
   } else {
