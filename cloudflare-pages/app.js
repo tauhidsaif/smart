@@ -74,7 +74,7 @@ const HINDI_ADDRESS_CROP = {
   // These are safe fallback bounds. When possible, the crop bottom is calculated
   // from the source PDF's English "Address:" heading so long and short addresses
   // both end before the next heading.
-  adult: { left: 0.526, right: 0.757, top: 0.770, bottom: 0.802 },
+  adult: { left: 0.526, right: 0.757, top: 0.772, bottom: 0.802 },
   child: { left: 0.526, right: 0.757, top: 0.7690, bottom: 0.800 },
 };
 
