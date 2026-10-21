@@ -1076,6 +1076,40 @@ function removePaperBackground(crop) {
   return crop;
 }
 
+function thickenHindiNameRaster(canvas) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const original = new Uint8ClampedArray(image.data);
+  const pixels = image.data;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Expand only the isolated name glyphs by one source pixel for a subtle bold effect.
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const i = (y * width + x) * 4;
+      const alpha = original[i + 3];
+      if (alpha < 96) continue;
+
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) continue;
+          const ni = ((y + dy) * width + (x + dx)) * 4;
+          if (pixels[ni + 3] < alpha) {
+            pixels[ni] = 0;
+            pixels[ni + 1] = 0;
+            pixels[ni + 2] = 0;
+            pixels[ni + 3] = alpha;
+          }
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return canvas;
+}
+
 async function extractHindiNameRasterFromPage(page, viewport, source, renderScale, isChildLayout) {
   const content = await page.getTextContent();
   const pageView = page.view || [0, 0, 612, 792];
@@ -1164,7 +1198,10 @@ async function extractHindiNameRasterFromPage(page, viewport, source, renderScal
     return null;
   }
 
-  if (isChildLayout) removePaperBackground(canvas);
+  // Make the crop transparent against the card background, then bold just the
+  // Hindi name glyphs. The English name is already rendered in bold separately.
+  removePaperBackground(canvas);
+  thickenHindiNameRaster(canvas);
 
   const baselinePoint = viewport.convertToViewportPoint(minX, nameRow.y);
   return {
