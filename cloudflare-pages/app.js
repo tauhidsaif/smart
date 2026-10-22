@@ -880,8 +880,8 @@ ctx.drawImage(template, 0, 0);
   ctx.imageSmoothingQuality = "high";
 
   if (hindiNameRaster) {
-    // Keep the existing raster glyph method, increasing size only for with-VID cards.
-    const targetFontPixels = (hasVid ? 75 : 70) * 96 / 72;
+    // Reuse original PDF glyphs to avoid broken Unicode/font mappings in some PDFs.
+    const targetFontPixels = 70 * 96 / 72;
     const drawScale = Math.min(
       targetFontPixels / Math.max(1, hindiNameRaster.sourceFontPixels),
       1400 / hindiNameRaster.canvas.width
@@ -896,32 +896,29 @@ ctx.drawImage(template, 0, 0);
       hindiNameRaster.canvas.height * drawScale
     );
   } else {
-    ctx.font = 'bold ' + (hasVid ? "75pt" : "70pt") + ' "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-    wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, hasVid ? 92 : 86, { maxLines: 2, autoShrink: true, minSize: 28 });
+    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
+    wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, 86, { maxLines: 2, autoShrink: true, minSize: 28 });
   }
 
-  ctx.font = "bold " + (hasVid ? "75pt" : "70pt") + " Arial";
-  ctx.fillText(fields.englishName || "Name Not Found", 982, hasVid ? 660 : 677);
+  ctx.font = "bold 70pt Arial";
+  ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
   if (hasVid) {
-    // Keep all personal-information rows slightly larger and more compact.
+    // Re-create the label removed from the with-VID template; keep the DOB
+    // label regular and the date bold at the same 70pt size.
     const dobLabel = "जन्म तिथि/DOB:";
-    ctx.font = 'bold 75pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
-    ctx.fillText(dobLabel, 982, 765);
+    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+    ctx.fillText(dobLabel, 982, 805);
     const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
-    ctx.font = "bold 75pt Arial";
-    ctx.fillText(fields.dob || "—", dobDateX, 765);
-    ctx.font = 'bold 75pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-    ctx.fillText(fields.gender || "—", 982, 865);
-    ctx.font = "bold 75pt Arial";
-    ctx.fillText(fields.mobile || "—", 1245, 970);
+    ctx.font = "bold 70pt Arial";
+    ctx.fillText(fields.dob || "—", dobDateX, 805);
   } else {
     ctx.font = "bold 70pt Arial";
     ctx.fillText(fields.dob || "—", 1559, 805);
-    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
-    ctx.fillText(fields.gender || "—", 982, 925);
-    ctx.font = "bold 70pt Arial";
-    ctx.fillText(fields.mobile || "—", 1245, 1061);
   }
+  ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
+  ctx.fillText(fields.gender || "—", 982, 925);
+  ctx.font = "bold 70pt Arial";
+  ctx.fillText(fields.mobile || "—", 1245, 1061);
   if (hasVid) {
     // Slightly enlarge the Aadhaar number and center it on the with-VID template.
     ctx.textAlign = "center";
