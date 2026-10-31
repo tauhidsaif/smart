@@ -905,21 +905,21 @@ ctx.drawImage(template, 0, 0);
     wrapCanvasText(ctx, fields.hindiName || "नाम नहीं मिला", 982, 553, 1400, 86, { maxLines: 2, autoShrink: true, minSize: 28 });
   }
 
+  // Keep the five requested identity fields visually consistent on both
+  // VID and no-VID cards. The no-VID artwork already contains the DOB label,
+  // so only draw that label on the VID artwork to avoid duplicating it.
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.englishName || "Name Not Found", 982, 677);
+
+  const dobLabel = "जन्म तिथि/DOB:";
+  ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+  const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
   if (hasVid) {
-    // Re-create the label removed from the with-VID template; keep the DOB
-    // label regular and the date bold at the same 70pt size.
-    const dobLabel = "जन्म तिथि/DOB:";
-    ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
     ctx.fillText(dobLabel, 982, 805);
-    const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
-    ctx.font = "bold 70pt Arial";
-    ctx.fillText(fields.dob || "—", dobDateX, 805);
-  } else {
-    ctx.font = "bold 70pt Arial";
-    ctx.fillText(fields.dob || "—", 1559, 805);
   }
+  ctx.font = "bold 70pt Arial";
+  ctx.fillText(fields.dob || "—", dobDateX, 805);
+
   ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", sans-serif';
   ctx.fillText(fields.gender || "—", 982, 925);
   ctx.font = "bold 70pt Arial";
