@@ -53,15 +53,20 @@ let savedPhotoSettings = {
   borderColor: "#111827",
 };
 
+// Bump this value when template images are replaced to bypass browser/CDN caches.
+const TEMPLATE_ASSET_VERSION = "20261031-1";
+const templateAsset = (path) => `${path}?v=${TEMPLATE_ASSET_VERSION}`;
+
 const TEMPLATE_PATHS = {
-  adultFront: "./assets/templates/adult-front.png",
-  adultBack: "./assets/templates/adult-back.png",
-  childFront: "./assets/templates/child-front.png",
-  childBack: "./assets/templates/child-back.png",
-  adultFrontNoVid: "./assets/templates/no-vid/adult-front.png",
-  adultBackNoVid: "./assets/templates/no-vid/adult-back.png",
-  childFrontNoVid: "./assets/templates/no-vid/child-front.png",
-  childBackNoVid: "./assets/templates/no-vid/child-back.png",
+  adultFront: templateAsset("./assets/templates/adult-front.png"),
+  adultBack: templateAsset("./assets/templates/adult-back.png"),
+  childFront: templateAsset("./assets/templates/child-front.png"),
+  childBack: templateAsset("./assets/templates/child-back.png"),
+  // These no-VID front templates mirror templatevid/final.png and templatevid/child.png.
+  adultFrontNoVid: templateAsset("./assets/templates/no-vid/adult-front.png"),
+  adultBackNoVid: templateAsset("./assets/templates/no-vid/adult-back.png"),
+  childFrontNoVid: templateAsset("./assets/templates/no-vid/child-front.png"),
+  childBackNoVid: templateAsset("./assets/templates/no-vid/child-back.png"),
 };
 const templateCache = new Map();
 
