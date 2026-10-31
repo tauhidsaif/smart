@@ -54,7 +54,7 @@ let savedPhotoSettings = {
 };
 
 // Bump this value when template images are replaced to bypass browser/CDN caches.
-const TEMPLATE_ASSET_VERSION = "20261031-1";
+const TEMPLATE_ASSET_VERSION = "20261031-2";
 const templateAsset = (path) => `${path}?v=${TEMPLATE_ASSET_VERSION}`;
 
 const TEMPLATE_PATHS = {
