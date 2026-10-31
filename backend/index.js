@@ -531,8 +531,8 @@ app.post("/upload", upload.single("aadhaar"), async (req, res) => {
           const isChild = photoFilename && photoFilename.includes("photo-010");
 
           const frontTemplatePath = isChild
-            ? path.join(__dirname, "..", "template", "child.png")
-            : path.join(__dirname, "..", "template", "final.png");
+            ? path.join(__dirname, "..", "templatevid", "child.png")
+            : path.join(__dirname, "..", "templatevid", "final.png");
 
           const backTemplatePath = isChild
             ? path.join(__dirname, "..", "template", "child_back.png")
@@ -867,8 +867,8 @@ app.post("/finalize-dob", async (req, res) => {
 
     // set template paths based on detected photo type
     const frontTemplatePath = isChild
-      ? path.join(__dirname, "..", "template", "child.png")
-      : path.join(__dirname, "..", "template", "final.png");
+      ? path.join(__dirname, "..", "templatevid", "child.png")
+      : path.join(__dirname, "..", "templatevid", "final.png");
 
     const backTemplatePath = isChild
       ? path.join(__dirname, "..", "template", "child_back.png")
