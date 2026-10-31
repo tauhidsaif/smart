@@ -913,10 +913,9 @@ ctx.drawImage(template, 0, 0);
 
   const dobLabel = "जन्म तिथि/DOB:";
   ctx.font = 'bold 70pt "NotoSansHindi", "Noto Sans Devanagari", Arial, sans-serif';
+  // Explicitly draw the DOB label on both VID and no-VID cards.
+  ctx.fillText(dobLabel, 982, 805);
   const dobDateX = 982 + ctx.measureText(dobLabel).width + 16;
-  if (hasVid) {
-    ctx.fillText(dobLabel, 982, 805);
-  }
   ctx.font = "bold 70pt Arial";
   ctx.fillText(fields.dob || "—", dobDateX, 805);
 
